@@ -1,8 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
 const IMAGE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/418.png';
-const MIN_DELAY_MS = 3 * 60 * 1000;
-const MAX_DELAY_MS = 15 * 60 * 1000;
+const MIN_DELAY_MS = 2 * 60 * 1000;
+const MAX_DELAY_MS = 10 * 60 * 1000;
 const MAX = 50;
 const LIFETIME_MS = 60 * 60 * 1000;
 const CAUGHT_KEY = 'pokeclopedie:caught';
@@ -67,11 +67,10 @@ export function MusteboueeSwarm() {
     let timer: ReturnType<typeof setTimeout>;
     const spawnOne = () => {
       const size = 40 + Math.round(Math.random() * 80);
-      const docHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight);
       const spawn: Spawn = {
         id: ++id,
         left: randomLeft(),
-        top: Math.random() * Math.max(docHeight - size, 0),
+        top: window.scrollY + Math.random() * Math.max(window.innerHeight - size, 0),
         size,
       };
       setItems((cur) => (cur.length >= MAX ? cur : [...cur, spawn]));
