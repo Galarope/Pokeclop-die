@@ -289,3 +289,20 @@ body { min-height: 100vh; }
 .mustebouee{max-width:min(92vw,560px);text-align:center}
 .mustebouee-body{display:grid;gap:1rem;justify-items:center;padding:1rem}
 .mustebouee-body .btn{white-space:normal;line-height:1.4}
+
+/* Curseurs personnalisés (PNG 40x30, point actif au centre ; repli sur les curseurs natifs) */
+.cursor-picker{margin-left:auto;display:flex;gap:.35rem}
+.cursor-picker button{background:transparent;border:2px solid transparent;border-radius:12px;padding:.1rem .25rem;line-height:0}
+.cursor-picker button:hover{background:color-mix(in srgb,var(--text) 10%,transparent)}
+.cursor-picker button.active{border-color:var(--accent)}
+.cursor-picker img{image-rendering:pixelated}
+@media (max-width:600px){.cursor-picker{order:2}}
+html[data-cursor="mustebouee"],html[data-cursor="mustebouee"] *{cursor:url(/cursors/mustebouee.png) 20 15,auto}
+html[data-cursor="mustebouee"] :is(a,button,[role=button],summary,label,select,input[type=checkbox],input[type=radio],input[type=range]){cursor:url(/cursors/mustebouee.png) 20 15,pointer}
+html[data-cursor="mustebouee"] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea){cursor:text}
+html[data-cursor="axoloto"],html[data-cursor="axoloto"] *{cursor:url(/cursors/axoloto.png) 20 15,auto}
+html[data-cursor="axoloto"] :is(a,button,[role=button],summary,label,select,input[type=checkbox],input[type=radio],input[type=range]){cursor:url(/cursors/axoloto.png) 20 15,pointer}
+html[data-cursor="axoloto"] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea){cursor:text}
+html[data-cursor="pikachu"],html[data-cursor="pikachu"] *{cursor:url(/cursors/pikachu.png) 20 15,auto}
+html[data-cursor="pikachu"] :is(a,button,[role=button],summary,label,select,input[type=checkbox],input[type=radio],input[type=range]){cursor:url(/cursors/pikachu.png) 20 15,pointer}
+html[data-cursor="pikachu"] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea){cursor:text}

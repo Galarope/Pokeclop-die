@@ -1,5 +1,6 @@
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { Mustebouee } from './Mustebouee';
+import { CursorPicker } from './CursorPicker';
 
 export function Layout() {
   return (
@@ -18,6 +19,7 @@ export function Layout() {
             <NavLink to="/regions">Régions</NavLink>
             <NavLink to="/equipe">Équipe & types</NavLink>
           </nav>
+          <CursorPicker />
         </div>
       </header>
       <main id="main" className="container" tabIndex={-1}>

@@ -28,7 +28,7 @@ function TrainerCard({ t, lookup }: { t: Trainer; lookup: Lookup }) {
   return (
     <>
       <TrainerItem t={t} lookup={lookup} />
-      {t.alt && <TrainerItem t={t.alt} lookup={lookup} />}
+      {t.alt && <TrainerCard t={t.alt} lookup={lookup} />}
     </>
   );
 }
@@ -135,7 +135,6 @@ function RegionModal({ region, lookup, onClose }: { region: Region; lookup: Look
           <h4>Champion</h4>
           <ul className="trainers">
             <TrainerCard t={region.champion} lookup={lookup} />
-            {region.altChampion && <TrainerCard t={region.altChampion} lookup={lookup} />}
           </ul>
         </section>
 
