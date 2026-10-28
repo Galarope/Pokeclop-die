@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import type { CardBrief } from '../domain/types';
 import { getSource } from '../sources';
 import { imageUrl } from '../sources/tcgdex';
@@ -132,6 +133,11 @@ export function CardModal({ card, onClose }: { card: CardBrief; onClose: () => v
             <dd>{card.source}</dd>
           </dl>
           {data?.description && <p className="muted">{data.description}</p>}
+          {data?.dexIds?.[0] && (
+            <Link className="btn" to={`/?p=${data.dexIds[0]}`}>
+              Voir la fiche Pokédex
+            </Link>
+          )}
         </div>
       </div>
     </dialog>

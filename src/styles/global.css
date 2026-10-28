@@ -290,7 +290,7 @@ body { min-height: 100vh; }
 .mustebouee-body{display:grid;gap:1rem;justify-items:center;padding:1rem}
 .mustebouee-body .btn{white-space:normal;line-height:1.4}
 
-/* Curseurs personnalisés (PNG 40x30, point actif au centre ; repli sur les curseurs natifs) */
+/* Curseurs personnalisï¿½s (PNG 40x30, point actif au centre ; repli sur les curseurs natifs) */
 .cursor-picker{margin-left:auto;display:flex;gap:.35rem}
 .cursor-picker button{background:transparent;border:2px solid transparent;border-radius:12px;padding:.1rem .25rem;line-height:0}
 .cursor-picker button:hover{background:color-mix(in srgb,var(--text) 10%,transparent)}
@@ -306,3 +306,8 @@ html[data-cursor="axoloto"] :is(input:not([type=checkbox]):not([type=radio]):not
 html[data-cursor="pikachu"],html[data-cursor="pikachu"] *{cursor:url(/cursors/pikachu.png) 20 15,auto}
 html[data-cursor="pikachu"] :is(a,button,[role=button],summary,label,select,input[type=checkbox],input[type=radio],input[type=range]){cursor:url(/cursors/pikachu.png) 20 15,pointer}
 html[data-cursor="pikachu"] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea){cursor:text}
+
+/* ï¿½quipes de dresseurs : lignes de 3 Pokï¿½mon ; vignette de rï¿½gion sans lien */
+.team a, .team .team-link { display: flex; flex-direction: column; align-items: center; width: 74px; text-align: center; text-decoration: none; color: inherit; }
+.trainer .team { display: grid; grid-template-columns: repeat(3, 74px); gap: 0.4rem 0.6rem; justify-content: center; }
+.region-tile .team-link { cursor: inherit; }

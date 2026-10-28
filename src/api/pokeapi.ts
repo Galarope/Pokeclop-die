@@ -1,4 +1,4 @@
-import { cached, TTL } from '../lib/cache';
+﻿import { cached, TTL } from '../lib/cache';
 import { fetchJson } from '../lib/http';
 import type {
   EvolutionNode,
@@ -25,6 +25,7 @@ interface GqlSpecies {
   id: number;
   name: string;
   generation_id: number;
+  evolves_from_species_id?: number | null;
   pokemon_v2_pokemonspeciesnames: { name: string; language_id: number }[];
   pokemon_v2_pokemons: {
     height: number | null;
@@ -38,7 +39,7 @@ interface GqlSpecies {
 
 const LIST_QUERY = `query {
   pokemon_v2_pokemonspecies(order_by: {id: asc}) {
-    id name generation_id
+    id name generation_id evolves_from_species_id
     pokemon_v2_pokemonspeciesnames(where: {language_id: {_in: [${FR}, ${EN}]}}) { name language_id }
     pokemon_v2_pokemons(where: {is_default: {_eq: true}}) {
       height weight
@@ -68,6 +69,7 @@ export function mapSpecies(s: GqlSpecies): PokemonSummary {
     nameFr: name(FR),
     nameEn: name(EN),
     generation: s.generation_id,
+    evolvesFromId: s.evolves_from_species_id ?? undefined,
     types: (p?.pokemon_v2_pokemontypes ?? []).map((t) => ({
       slug: t.pokemon_v2_type.name,
       labelFr: t.pokemon_v2_type.pokemon_v2_typenames[0]?.name,
@@ -81,7 +83,7 @@ export function mapSpecies(s: GqlSpecies): PokemonSummary {
 
 export function getPokemonList(): Promise<PokemonSummary[]> {
   return cached(
-    'pokeapi:list',
+    'pokeapi:list:v2',
     async () => {
       const json = await fetchJson<{ data?: { pokemon_v2_pokemonspecies: GqlSpecies[] }; errors?: unknown }>(GRAPHQL, {
         init: {

@@ -27,9 +27,27 @@ interface Options {
 
 const typesOf = (p: PokemonSummary) => p.types.map((t) => t.slug);
 
+/** Formes finales (aucune espèce n'évolue à partir d'elles) et accès aux évolutions directes. */
+function evolutionIndex(all: PokemonSummary[]) {
+  const children = new Map<number, PokemonSummary[]>();
+  for (const p of all) {
+    if (p.evolvesFromId) children.set(p.evolvesFromId, [...(children.get(p.evolvesFromId) ?? []), p]);
+  }
+  const finals = (p: PokemonSummary): PokemonSummary[] => {
+    const next = children.get(p.id);
+    return next?.length ? next.flatMap(finals) : [p];
+  };
+  return { isFinal: (p: PokemonSummary) => !children.has(p.id), finals };
+}
+
 /** Complète `fixed` (Pokémon verrouillés / obligatoires) avec des Pokémon du pool ; renvoie une erreur lisible si impossible. */
-function generate(all: PokemonSummary[], o: Options, fixed: PokemonSummary[]): { team?: PokemonSummary[]; error?: string } {
-  const pool = all.filter((p) => o.gens.includes(p.generation) && !fixed.some((f) => f.id === p.id));
+function generate(all: PokemonSummary[], o: Options, fixedIn: PokemonSummary[]): { team?: PokemonSummary[]; error?: string } {
+  const evo = evolutionIndex(all);
+  const fixed = fixedIn.map((p) => {
+    const options = evo.finals(p);
+    return options[Math.floor(Math.random() * options.length)];
+  });
+  const pool = all.filter((p) => evo.isFinal(p) && o.gens.includes(p.generation) && !fixed.some((f) => f.id === p.id));
   if (fixed.length > o.size) return { error: `Trop de Pokémon obligatoires/verrouillés pour une équipe de ${o.size}.` };
   if (o.distinctTypes && fixed.some((p, i) => typesOf(p).some((t) => fixed.slice(0, i).some((q) => typesOf(q).includes(t))))) {
     return { error: 'Les Pokémon obligatoires partagent déjà un type : décochez « types tous différents ».' };

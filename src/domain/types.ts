@@ -15,6 +15,8 @@ export interface PokemonSummary {
   nameFr?: string;
   nameEn?: string;
   generation: number;
+  /** espèce dont celle-ci évolue (absent pour un stade de base) */
+  evolvesFromId?: number;
   types: PokemonType[];
   /** décimètres, tel que fourni par PokéAPI */
   height?: number;

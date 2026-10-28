@@ -6,17 +6,26 @@ import { usePokemonList } from '../hooks/usePokemonList';
 
 type Lookup = (id: number) => PokemonSummary | undefined;
 
-function Team({ ids, lookup }: { ids: number[]; lookup: Lookup }) {
+function Team({ ids, lookup, plain }: { ids: number[]; lookup: Lookup; plain?: boolean }) {
   return (
     <ul className="team">
       {ids.map((id, i) => {
         const p = lookup(id);
+        const inner = (
+          <>
+            {p ? <img src={p.imageUrl} alt="" loading="lazy" width={56} height={56} /> : <span className="team-ph" />}
+            <span className="small">{p?.nameFr ?? p?.nameEn ?? `#${id}`}</span>
+          </>
+        );
         return (
           <li key={`${id}-${i}`}>
-            <Link to={`/?p=${id}`} title={p?.nameFr ?? `n° ${id}`}>
-              {p ? <img src={p.imageUrl} alt="" loading="lazy" width={56} height={56} /> : <span className="team-ph" />}
-              <span className="small">{p?.nameFr ?? p?.nameEn ?? `#${id}`}</span>
-            </Link>
+            {plain ? (
+              <span className="team-link">{inner}</span>
+            ) : (
+              <Link to={`/?p=${id}`} title={p?.nameFr ?? `n° ${id}`}>
+                {inner}
+              </Link>
+            )}
           </li>
         );
       })}
@@ -171,10 +180,15 @@ export function RegionsPage() {
       <ul className="grid regions-grid">
         {REGIONS.map((r) => (
           <li key={r.id}>
-            <button type="button" className="tile region-tile" style={{ ['--region' as string]: r.color }} onClick={() => setSelected(r)}>
+            <button
+              type="button"
+              className="tile region-tile"
+              style={{ ['--region' as string]: r.color }}
+              onClick={() => setSelected(r)}
+            >
               <strong>{r.name}</strong>
               <span className="muted small">Génération {r.generation}</span>
-              <Team ids={r.starters} lookup={lookup} />
+              <Team ids={r.starters} lookup={lookup} plain />
             </button>
           </li>
         ))}
