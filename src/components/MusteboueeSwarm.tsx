@@ -4,8 +4,8 @@ const IMAGE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/
 const MIN_DELAY_MS = 2 * 60 * 1000;
 const MAX_DELAY_MS = 10 * 60 * 1000;
 const MAX = 50;
-const LIFETIME_MS = 60 * 60 * 1000;
 const CAUGHT_KEY = 'pokeclopedie:caught';
+const ITEMS_KEY = 'pokeclopedie:spawns';
 const listeners = new Set<() => void>();
 
 function readCaught(): number {
@@ -58,12 +58,28 @@ function randomLeft(): number {
   return 12 + Math.random() * 76;
 }
 
+function loadItems(): Spawn[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ITEMS_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed.slice(0, MAX) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function MusteboueeSwarm() {
-  const [items, setItems] = useState<Spawn[]>([]);
+  const [items, setItems] = useState<Spawn[]>(loadItems);
 
   useEffect(() => {
-    let id = 0;
-    const timeouts = new Set<ReturnType<typeof setTimeout>>();
+    try {
+      localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
+    } catch {
+      /* stockage indisponible */
+    }
+  }, [items]);
+
+  useEffect(() => {
+    let id = items.reduce((max, x) => Math.max(max, x.id), 0);
     let timer: ReturnType<typeof setTimeout>;
     const spawnOne = () => {
       const size = 40 + Math.round(Math.random() * 80);
@@ -74,11 +90,6 @@ export function MusteboueeSwarm() {
         size,
       };
       setItems((cur) => (cur.length >= MAX ? cur : [...cur, spawn]));
-      const t = setTimeout(() => {
-        timeouts.delete(t);
-        setItems((cur) => cur.filter((x) => x.id !== spawn.id));
-      }, LIFETIME_MS);
-      timeouts.add(t);
       schedule();
     };
     const schedule = () => {
@@ -87,7 +98,6 @@ export function MusteboueeSwarm() {
     schedule();
     return () => {
       clearTimeout(timer);
-      timeouts.forEach(clearTimeout);
     };
   }, []);
 
