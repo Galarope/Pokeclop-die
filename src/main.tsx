@@ -5,6 +5,8 @@ import { Layout } from './components/Layout';
 import { PokemonProvider } from './hooks/usePokemonList';
 import { CardsPage } from './pages/CardsPage';
 import { PokedexPage } from './pages/PokedexPage';
+import { RegionsPage } from './pages/RegionsPage';
+import { TeamPage } from './pages/TeamPage';
 import { SetPage } from './pages/SetPage';
 import './styles/global.css';
 
@@ -24,6 +26,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="sets" element={<Navigate to="/" replace />} />
             <Route path="sets/:lang/:id" element={<SetPage />} />
             <Route path="cards" element={<CardsPage />} />
+            <Route path="regions" element={<RegionsPage />} />
+            <Route path="equipe" element={<TeamPage />} />
             <Route
               path="*"
               element={

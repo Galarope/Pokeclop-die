@@ -93,6 +93,11 @@ export interface CardSet {
   serieName?: string;
 }
 
+export interface CardSerie {
+  id: string;
+  name: string;
+}
+
 export interface CardSetDetail extends CardSet {
   cards: CardBrief[];
 }
@@ -101,7 +106,12 @@ export interface CardQuery {
   lang: LangCode;
   name?: string;
   dexId?: number;
+  /** plage de numéros de Pokédex (bornes incluses) ; une seule borne = même valeur */
+  dexMin?: number;
+  dexMax?: number;
   setId?: string;
+  /** plusieurs extensions (ex. un bloc entier) ; ignoré si setId est fourni */
+  setIds?: string[];
   rarity?: string;
   type?: string;
   stage?: string;

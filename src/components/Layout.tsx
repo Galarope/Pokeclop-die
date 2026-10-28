@@ -14,6 +14,8 @@ export function Layout() {
           <nav aria-label="Navigation principale">
             <NavLink to="/" end>Pokédex</NavLink>
             <NavLink to="/cards">Cartes</NavLink>
+            <NavLink to="/regions">Régions</NavLink>
+            <NavLink to="/equipe">Équipe & types</NavLink>
           </nav>
         </div>
       </header>

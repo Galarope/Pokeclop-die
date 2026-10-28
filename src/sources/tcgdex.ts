@@ -1,6 +1,6 @@
 import { cached, TTL } from '../lib/cache';
 import { fetchJson } from '../lib/http';
-import type { CardBrief, CardDetail, CardQuery, CardSet, CardSetDetail, LangCode, Paged } from '../domain/types';
+import type { CardBrief, CardDetail, CardQuery, CardSerie, CardSet, CardSetDetail, LangCode, Paged } from '../domain/types';
 import type { CardSource } from './types';
 
 const BASE = 'https://api.tcgdex.net/v2';
@@ -78,6 +78,7 @@ export function buildCardsUrl(q: CardQuery): string {
   if (q.name) p.set('name', q.name);
   if (q.dexId !== undefined) p.set('dexId', `eq:${q.dexId}`);
   if (q.setId) p.set('set.id', `eq:${q.setId}`);
+  else if (q.setIds?.length) p.set('set.id', q.setIds.join('|'));
   if (q.rarity) p.set('rarity', `eq:${q.rarity}`);
   if (q.type) p.set('types', `eq:${q.type}`);
   if (q.stage) p.set('stage', `eq:${q.stage}`);
@@ -96,6 +97,50 @@ export function buildCardsUrl(q: CardQuery): string {
   return `${BASE}/${q.lang}/cards${qs ? `?${qs}` : ''}`;
 }
 
+/** Nombre maximal de numéros de Pokédex par recherche par plage (une requête par numéro). */
+export const MAX_DEX_RANGE = 100;
+
+async function searchOne(q: CardQuery): Promise<Paged<CardBrief>> {
+  const url = buildCardsUrl(q);
+  // Pas de AbortSignal ici : la requête est partagée/dédupliquée par le cache ; useAsync ignore les réponses obsolètes.
+  const raw = await cached(`tcgdex:search:${url}`, () => fetchJson<RawBrief[]>(url), {
+    ttl: TTL.short,
+    persistent: !q.page,
+  });
+  const items = raw.map(toBrief(q.lang));
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? items.length;
+  let hasNext = false;
+  if (q.page !== undefined && items.length === pageSize) {
+    // TCGdex ne renvoie pas de total : on sonde la page suivante.
+    const nextUrl = buildCardsUrl({ ...q, page: page + 1 });
+    const next = await cached(`tcgdex:search:${nextUrl}`, () => fetchJson<RawBrief[]>(nextUrl), {
+      ttl: TTL.short,
+      persistent: false,
+    });
+    hasNext = next.length > 0;
+  }
+  return { items, page, pageSize, hasNext } satisfies Paged<CardBrief>;
+}
+
+/** L'API ne filtre pas une plage sur dexId (champ tableau) : une requête par numéro, en parallèle limité. */
+async function searchDexRange(q: CardQuery, min: number, max: number): Promise<Paged<CardBrief>> {
+  const ids: number[] = [];
+  for (let n = min; n <= max; n++) ids.push(n);
+  const results: CardBrief[][] = new Array(ids.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < ids.length) {
+      const i = next++;
+      results[i] = (await searchOne({ ...q, dexId: ids[i], dexMin: undefined, dexMax: undefined })).items;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, ids.length) }, worker));
+  const seen = new Set<string>();
+  const items = results.flat().filter((c) => !seen.has(c.id) && seen.add(c.id));
+  return { items, page: 1, pageSize: items.length, hasNext: false };
+}
+
 export const tcgdex: CardSource = {
   id: SOURCE_ID,
   label: 'TCGdex',
@@ -103,26 +148,27 @@ export const tcgdex: CardSource = {
   languages: TCGDEX_LANGUAGES,
 
   async searchCards(q) {
-    const url = buildCardsUrl(q);
-    // Pas de AbortSignal ici : la requête est partagée/dédupliquée par le cache ; useAsync ignore les réponses obsolètes.
-    const raw = await cached(`tcgdex:search:${url}`, () => fetchJson<RawBrief[]>(url), {
-      ttl: TTL.short,
-      persistent: !q.page,
-    });
-    const items = raw.map(toBrief(q.lang));
-    const page = q.page ?? 1;
-    const pageSize = q.pageSize ?? items.length;
-    let hasNext = false;
-    if (q.page !== undefined && items.length === pageSize) {
-      // TCGdex ne renvoie pas de total : on sonde la page suivante.
-      const nextUrl = buildCardsUrl({ ...q, page: page + 1 });
-      const next = await cached(`tcgdex:search:${nextUrl}`, () => fetchJson<RawBrief[]>(nextUrl), {
-        ttl: TTL.short,
-        persistent: false,
-      });
-      hasNext = next.length > 0;
+    if (q.dexMin !== undefined || q.dexMax !== undefined) {
+      const min = Math.max(1, q.dexMin ?? q.dexMax!);
+      const max = Math.min(min + MAX_DEX_RANGE - 1, q.dexMax ?? q.dexMin!);
+      if (max < min) return { items: [], page: 1, pageSize: 0, hasNext: false };
+      return searchDexRange(q, min, max);
     }
-    return { items, page, pageSize, hasNext } satisfies Paged<CardBrief>;
+    return searchOne(q);
+  },
+
+  listSeries(lang) {
+    return cached(`tcgdex:series:${lang}`, () => fetchJson<CardSerie[]>(`${BASE}/${lang}/series`), { ttl: TTL.day }).then((l) =>
+      l.map((s) => ({ id: s.id, name: s.name })),
+    );
+  },
+
+  getSerieSetIds(lang, id) {
+    return cached(
+      `tcgdex:serie:${lang}:${id}`,
+      async () => (await fetchJson<{ sets?: { id: string }[] }>(`${BASE}/${lang}/series/${encodeURIComponent(id)}`)).sets?.map((s) => s.id) ?? [],
+      { ttl: TTL.day },
+    );
   },
 
   getCard(lang, id) {

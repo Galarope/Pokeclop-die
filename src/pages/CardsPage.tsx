@@ -6,14 +6,14 @@ import type { CardBrief } from '../domain/types';
 import { useAsync } from '../hooks/useAsync';
 import { usePokemonList } from '../hooks/usePokemonList';
 import { useUrlState } from '../hooks/useUrlState';
-import { tcgdex } from '../sources/tcgdex';
+import { MAX_DEX_RANGE, tcgdex } from '../sources/tcgdex';
 import { LANGUAGE_LABELS } from '../sources/types';
 import { cardSources } from '../sources';
 
 const languageOptions = () =>
   [...new Set(cardSources.flatMap((s) => [...s.languages]))].map((l) => ({ value: l, label: LANGUAGE_LABELS[l] ?? l }));
 
-const KEYS = ['lang', 'dex', 'set', 'rarity', 'type', 'stage', 'hpMin', 'hpMax', 'illustrator', 'sort'] as const;
+const KEYS = ['lang', 'dex', 'dexMin', 'dexMax', 'serie', 'set', 'rarity', 'type', 'stage', 'hpMin', 'hpMax', 'illustrator', 'sort'] as const;
 
 function useDebounced<T>(value: T, ms = 400): T {
   const [v, setV] = useState(value);
@@ -31,6 +31,7 @@ export function CardsPage() {
   const lang = values.lang || 'fr';
   const { data: pokemon } = usePokemonList();
   const [selected, setSelected] = useState<CardBrief | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const dexPokemon = pokemon?.find((p) => String(p.id) === values.dex);
   const [pokemonText, setPokemonText] = useState('');
@@ -51,19 +52,31 @@ export function CardsPage() {
   const rarities = useAsync(() => tcgdex.listRarities(lang), [lang]);
   const types = useAsync(() => tcgdex.listTypes(lang), [lang]);
   const stages = useAsync(() => (tcgdex.listStages ? tcgdex.listStages(lang) : Promise.resolve([])), [lang]);
+  const series = useAsync(() => (tcgdex.listSeries ? tcgdex.listSeries(lang) : Promise.resolve([])), [lang]);
+  const serieSets = useAsync(
+    () => (values.serie && tcgdex.getSerieSetIds ? tcgdex.getSerieSetIds(lang, values.serie) : Promise.resolve(undefined)),
+    [lang, values.serie],
+  );
+  const serieLoading = !!values.serie && serieSets.data === undefined && !serieSets.error;
 
   // Les champs texte/numériques sont retardés pour ne pas lancer une requête à chaque frappe.
   const illustrator = useDebounced(values.illustrator.trim());
   const hpMin = useDebounced(values.hpMin);
   const hpMax = useDebounced(values.hpMax);
-  const hasFilter = !!(values.dex || values.set || values.rarity || values.type || values.stage || illustrator || hpMin || hpMax);
+  const dexMin = useDebounced(values.dexMin);
+  const dexMax = useDebounced(values.dexMax);
+  const hasDexRange = !values.dex && !!(dexMin || dexMax);
+  const hasFilter = !!(values.dex || hasDexRange || values.serie || values.set || values.rarity || values.type || values.stage || illustrator || hpMin || hpMax);
   const result = useAsync(
     () =>
-      hasFilter
+      hasFilter && !serieLoading
         ? tcgdex.searchCards({
             lang,
             dexId: values.dex ? Number(values.dex) : undefined,
+            dexMin: hasDexRange ? toNumber(dexMin) : undefined,
+            dexMax: hasDexRange ? toNumber(dexMax) : undefined,
             setId: values.set || undefined,
+            setIds: values.serie ? (serieSets.data?.length ? serieSets.data : ['-']) : undefined,
             rarity: values.rarity || undefined,
             type: values.type || undefined,
             stage: values.stage || undefined,
@@ -73,7 +86,7 @@ export function CardsPage() {
             sort: values.sort === 'illustrator' ? 'illustrator' : undefined,
           })
         : Promise.resolve(undefined),
-    [lang, hasFilter, values.dex, values.set, values.rarity, values.type, values.stage, hpMin, hpMax, illustrator, values.sort],
+    [lang, hasFilter, serieLoading, serieSets.data, hasDexRange, dexMin, dexMax, values.dex, values.set, values.rarity, values.type, values.stage, hpMin, hpMax, illustrator, values.sort],
   );
 
   const items = result.data?.items ?? [];
@@ -81,11 +94,15 @@ export function CardsPage() {
   return (
     <>
       <h1>Cartes du JCC</h1>
-      <form className="filters" onSubmit={(e) => e.preventDefault()} aria-label="Filtres des cartes">
+      <button type="button" className="btn filters-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+        {filtersOpen ? 'Masquer les filtres' : 'Filtres'}
+      </button>
+      <div className="cards-layout">
+      <form className={`filters filters-side${filtersOpen ? ' open' : ''}`} onSubmit={(e) => e.preventDefault()} aria-label="Filtres des cartes">
         <SelectField
           label="Langue"
           value={lang}
-          onChange={(v) => set({ lang: v, set: '', rarity: '', type: '', stage: '' })}
+          onChange={(v) => set({ lang: v, serie: '', set: '', rarity: '', type: '', stage: '' })}
           options={languageOptions()}
           placeholder="Français (défaut)"
         />
@@ -96,11 +113,29 @@ export function CardsPage() {
             ))}
           </datalist>
         </TextField>
+        <fieldset className="field-range">
+          <legend>N° de Pokédex (de … à …)</legend>
+          <input type="number" min={1} aria-label="N° Pokédex min." value={values.dexMin} placeholder="min" onChange={(e) => set({ dexMin: e.target.value })} />
+          <span aria-hidden="true">–</span>
+          <input type="number" min={1} aria-label="N° Pokédex max." value={values.dexMax} placeholder="max" onChange={(e) => set({ dexMax: e.target.value })} />
+          <small className="muted">
+            {values.dex ? 'Ignoré tant qu’un Pokémon est choisi.' : `Maximum ${MAX_DEX_RANGE} numéros par recherche.`}
+          </small>
+        </fieldset>
+        <SelectField
+          label="Bloc d'extensions"
+          value={values.serie}
+          onChange={(v) => set({ serie: v, set: '' })}
+          options={(series.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
+          disabled={!series.data?.length}
+        />
         <SelectField
           label="Extension"
           value={values.set}
           onChange={(v) => set({ set: v })}
-          options={(sets.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
+          options={(sets.data ?? [])
+            .filter((s) => !values.serie || !serieSets.data || serieSets.data.includes(s.id))
+            .map((s) => ({ value: s.id, label: s.name }))}
           disabled={!sets.data}
         />
         <SelectField
@@ -134,10 +169,11 @@ export function CardsPage() {
           options={[{ value: 'illustrator', label: 'Illustrateur (A→Z)' }]}
           placeholder="Par défaut"
         />
-        <button type="button" className="btn" onClick={() => set({ dex: '', set: '', rarity: '', type: '', stage: '', hpMin: '', hpMax: '', illustrator: '', sort: '' })}>
+        <button type="button" className="btn" onClick={() => set({ dex: '', dexMin: '', dexMax: '', serie: '', set: '', rarity: '', type: '', stage: '', hpMin: '', hpMax: '', illustrator: '', sort: '' })}>
           Réinitialiser
         </button>
       </form>
+      <div className="cards-results">
       <p className="muted small">
         Tous les résultats sont affichés sur une seule page. Choisissez au moins un filtre : charger toutes les cartes d'une langue en une fois serait trop lourd.
       </p>
@@ -157,6 +193,8 @@ export function CardsPage() {
           </ul>
         </>
       )}
+      </div>
+      </div>
       {selected && <CardModal card={selected} onClose={() => setSelected(null)} />}
     </>
   );

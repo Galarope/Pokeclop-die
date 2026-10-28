@@ -1,4 +1,4 @@
-import type { CardBrief, CardDetail, CardQuery, CardSet, CardSetDetail, LangCode, Paged } from '../domain/types';
+import type { CardSerie, CardBrief, CardDetail, CardQuery, CardSet, CardSetDetail, LangCode, Paged } from '../domain/types';
 
 /**
  * Contrat que toute source de cartes doit respecter.
@@ -17,6 +17,9 @@ export interface CardSource {
   getSet(lang: LangCode, id: string): Promise<CardSetDetail>;
   listRarities(lang: LangCode): Promise<string[]>;
   listTypes(lang: LangCode): Promise<string[]>;
+  /** Optionnel : blocs d'extensions (séries) et leurs extensions. */
+  listSeries?(lang: LangCode): Promise<CardSerie[]>;
+  getSerieSetIds?(lang: LangCode, id: string): Promise<string[]>;
   listStages?(lang: LangCode): Promise<string[]>;
   /** Optionnel : retrouve l'image d'une carte dont la liste ne fournit pas d'URL (renvoie null si introuvable). */
   resolveImage?(card: CardBrief): Promise<string | null>;
