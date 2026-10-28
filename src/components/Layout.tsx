@@ -1,5 +1,6 @@
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { Mustebouee } from './Mustebouee';
+import { MusteboueeCounter, MusteboueeSwarm } from './MusteboueeSwarm';
 import { CursorPicker } from './CursorPicker';
 
 export function Layout() {
@@ -19,6 +20,7 @@ export function Layout() {
             <NavLink to="/regions">Régions</NavLink>
             <NavLink to="/equipe">Équipe & types</NavLink>
           </nav>
+          <MusteboueeCounter />
           <CursorPicker />
         </div>
       </header>
@@ -32,6 +34,7 @@ export function Layout() {
         </p>
       </footer>
       <Mustebouee />
+      <MusteboueeSwarm />
     </>
   );
 }

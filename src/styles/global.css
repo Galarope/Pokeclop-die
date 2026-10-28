@@ -311,3 +311,10 @@ html[data-cursor="pikachu"] :is(input:not([type=checkbox]):not([type=radio]):not
 .team a, .team .team-link { display: flex; flex-direction: column; align-items: center; width: 74px; text-align: center; text-decoration: none; color: inherit; }
 .trainer .team { display: grid; grid-template-columns: repeat(3, 74px); gap: 0.4rem 0.6rem; justify-content: center; }
 .region-tile .team-link { cursor: inherit; }
+
+.mustebouee-spawn{position:absolute;z-index:40;padding:0;border:0;background:none;cursor:pointer;animation:mb-pop .35s ease-out;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.mustebouee-spawn img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+@keyframes mb-pop{from{transform:scale(0)}to{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.mustebouee-spawn{animation:none}}
+.caught-counter{margin-left:auto;font-size:.9rem;white-space:nowrap}
+.caught-counter+.cursor-picker{margin-left:.75rem}
