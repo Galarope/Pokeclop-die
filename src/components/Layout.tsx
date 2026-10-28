@@ -1,4 +1,5 @@
 import { NavLink, Outlet, Link } from 'react-router-dom';
+import { Mustebouee } from './Mustebouee';
 
 export function Layout() {
   return (
@@ -28,6 +29,7 @@ export function Layout() {
           leurs propriétaires. Les données absentes des sources sont signalées par « — », jamais inventées.
         </p>
       </footer>
+      <Mustebouee />
     </>
   );
 }

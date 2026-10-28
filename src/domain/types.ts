@@ -24,10 +24,17 @@ export interface PokemonSummary {
   imageUrl: string;
 }
 
+export interface PokemonAbility {
+  slug: string;
+  nameFr?: string;
+  hidden: boolean;
+}
+
 export interface PokemonForm {
   slug: string;
   isDefault: boolean;
   types: PokemonType[];
+  abilities?: PokemonAbility[];
   height?: number;
   weight?: number;
   stats: Partial<Record<StatKey, number>>;

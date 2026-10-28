@@ -26,12 +26,21 @@ function Team({ ids, lookup }: { ids: number[]; lookup: Lookup }) {
 
 function TrainerCard({ t, lookup }: { t: Trainer; lookup: Lookup }) {
   return (
+    <>
+      <TrainerItem t={t} lookup={lookup} />
+      {t.alt && <TrainerItem t={t.alt} lookup={lookup} />}
+    </>
+  );
+}
+
+function TrainerItem({ t, lookup }: { t: Trainer; lookup: Lookup }) {
+  return (
     <li className="trainer">
       <div className="trainer-head">
         <strong>{t.name}</strong>
         <span className="muted small">{[t.place, t.type, t.badge].filter(Boolean).join(' · ')}</span>
       </div>
-      <Team ids={t.team} lookup={lookup} />
+      {t.team.length > 0 && <Team ids={t.team} lookup={lookup} />}
       {t.note && <p className="muted small">{t.note}</p>}
     </li>
   );
@@ -75,6 +84,12 @@ function RegionModal({ region, lookup, onClose }: { region: Region; lookup: Look
           <dd>{region.professor}</dd>
           <dt>Équipe méchante</dt>
           <dd>{region.villains}</dd>
+          <dt>Pokédex national</dt>
+          <dd>
+            Génération {region.generation} : n° {region.dexFirst} à {region.dexLast}
+          </dd>
+          <dt>Mécanique importante</dt>
+          <dd>{region.mechanic}</dd>
         </dl>
 
         <section>
@@ -120,8 +135,23 @@ function RegionModal({ region, lookup, onClose }: { region: Region; lookup: Look
           <h4>Champion</h4>
           <ul className="trainers">
             <TrainerCard t={region.champion} lookup={lookup} />
+            {region.altChampion && <TrainerCard t={region.altChampion} lookup={lookup} />}
           </ul>
         </section>
+
+        {region.differences.length > 0 && (
+          <section>
+            <h3>Différences entre les jeux</h3>
+            <ul className="game-diffs">
+              {region.differences.map((d) => (
+                <li key={d.games}>
+                  <strong>{d.games}</strong>
+                  <span className="small"> : {d.text}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {region.notes && <p className="muted small">{region.notes}</p>}
       </div>

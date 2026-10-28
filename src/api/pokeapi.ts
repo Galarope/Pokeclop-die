@@ -2,6 +2,7 @@ import { cached, TTL } from '../lib/cache';
 import { fetchJson } from '../lib/http';
 import type {
   EvolutionNode,
+  PokemonAbility,
   PokemonDetail,
   PokemonForm,
   PokemonSummary,
@@ -111,6 +112,7 @@ interface RestPokemon {
   weight: number;
   types: { slot: number; type: { name: string } }[];
   stats: { base_stat: number; stat: { name: string } }[];
+  abilities?: { ability: { name: string; url: string }; is_hidden: boolean; slot: number }[];
   sprites: { other?: { 'official-artwork'?: { front_default: string | null; front_shiny?: string | null } } };
 }
 
@@ -157,7 +159,7 @@ const toTypes = (t: RestPokemon['types'], labels: Map<string, string | undefined
 
 export async function getPokemonDetail(summary: PokemonSummary, allTypes: PokemonSummary[]): Promise<PokemonDetail> {
   return cached(
-    `pokeapi:detail:v2:${summary.id}`,
+    `pokeapi:detail:v3:${summary.id}`,
     async () => {
       const labels = new Map<string, string | undefined>();
       allTypes.forEach((p) => p.types.forEach((t) => labels.set(t.slug, t.labelFr)));
@@ -167,10 +169,26 @@ export async function getPokemonDetail(summary: PokemonSummary, allTypes: Pokemo
         Promise.all(
           species.varieties.map(async (v): Promise<PokemonForm> => {
             const p = await fetchJson<RestPokemon>(`${REST}/pokemon/${v.pokemon.name}`);
+            const abilities = await Promise.all(
+              [...(p.abilities ?? [])]
+                .sort((a, b) => a.slot - b.slot)
+                .map(async (a): Promise<PokemonAbility> => {
+                  const nameFr = await cached(
+                    `pokeapi:ability:v1:${a.ability.name}`,
+                    async () => {
+                      const r = await fetchJson<{ names: { name: string; language: { name: string } }[] }>(a.ability.url);
+                      return r.names.find((n) => n.language.name === 'fr')?.name ?? null;
+                    },
+                    { ttl: TTL.week },
+                  ).catch(() => null);
+                  return { slug: a.ability.name, nameFr: nameFr ?? undefined, hidden: a.is_hidden };
+                }),
+            );
             return {
               slug: p.name,
               isDefault: v.is_default,
               types: toTypes(p.types, labels),
+              abilities,
               height: p.height,
               weight: p.weight,
               stats: toStats(p.stats.map((s) => ({ base_stat: s.base_stat, pokemon_v2_stat: { name: s.stat.name } }))),

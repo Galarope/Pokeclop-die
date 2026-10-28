@@ -105,6 +105,7 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
 
   const byId = new Map((list.data ?? []).map((p) => [p.id, p]));
   const d = detail.data;
+  const abilities = (d?.forms.find((f) => f.isDefault) ?? d?.forms[0])?.abilities ?? [];
   const prev = byId.get(id - 1);
   const next = byId.get(id + 1);
 
@@ -176,8 +177,22 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
                   <dd>
                     <Val v={kilos(summary.weight)} />
                   </dd>
+                  {abilities.length > 0 && (
+                    <>
+                      <dt>Talents</dt>
+                      <dd>
+                        {abilities.map((a, i) => (
+                          <span key={a.slug}>
+                            {i > 0 && ', '}
+                            {a.nameFr ?? a.slug}
+                            {a.hidden && ' (caché)'}
+                          </span>
+                        ))}
+                      </dd>
+                    </>
+                  )}
                 </dl>
-                {(d?.flavorFr || d?.flavorEn) && <p>{d.flavorFr ?? d.flavorEn}</p>}
+                {(d?.flavorFr || d?.flavorEn) && <p>{d.flavorFr ?? d.                flavorEn}</p>}
               </div>
             </header>
 

@@ -285,3 +285,7 @@ a.tile:hover, button.tile:hover { transform: translateY(-3px); box-shadow: var(-
 
 html { min-height: 100%; background: var(--bg); }
 body { min-height: 100vh; }
+
+.mustebouee{max-width:min(92vw,560px);text-align:center}
+.mustebouee-body{display:grid;gap:1rem;justify-items:center;padding:1rem}
+.mustebouee-body .btn{white-space:normal;line-height:1.4}
