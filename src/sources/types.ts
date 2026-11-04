@@ -1,4 +1,4 @@
-import type { CardSerie, CardBrief, CardDetail, CardQuery, CardSet, CardSetDetail, LangCode, Paged } from '../domain/types';
+import type { CardSerie, CardBrief, CardDetail, CardQuery, CardSet, CardSetDetail, LangCode, Paged, SetRelease } from '../domain/types';
 
 /**
  * Contrat que toute source de cartes doit respecter.
@@ -11,7 +11,8 @@ export interface CardSource {
   readonly languages: readonly LangCode[];
   readonly homepage?: string;
 
-  searchCards(q: CardQuery): Promise<Paged<CardBrief>>;
+  /** `signal` : une recherche abandonnée peut cesser de lancer de nouvelles requêtes (son résultat est alors ignoré). */
+  searchCards(q: CardQuery, signal?: AbortSignal): Promise<Paged<CardBrief>>;
   getCard(lang: LangCode, id: string): Promise<CardDetail>;
   listSets(lang: LangCode): Promise<CardSet[]>;
   getSet(lang: LangCode, id: string): Promise<CardSetDetail>;
@@ -21,6 +22,9 @@ export interface CardSource {
   listSeries?(lang: LangCode): Promise<CardSerie[]>;
   getSerieSetIds?(lang: LangCode, id: string): Promise<string[]>;
   listStages?(lang: LangCode): Promise<string[]>;
+  /** Optionnel : date de sortie et bloc de chaque extension de la langue. */
+  listSetReleases?(lang: LangCode): Promise<SetRelease[]>;
+  listIllustrators?(lang: LangCode): Promise<string[]>;
   /** Optionnel : retrouve l'image d'une carte dont la liste ne fournit pas d'URL (renvoie null si introuvable). */
   resolveImage?(card: CardBrief): Promise<string | null>;
 }

@@ -327,6 +327,11 @@ main:has(.cards-layout) { width: min(92vw, 2000px); }
 .field-range legend { padding: 0; margin-bottom: 0.3rem; }
 .field-range input { flex: 1 1 0; min-width: 0; }
 .field-range small { flex-basis: 100%; font-weight: 500; }
+.type-toggle { font: inherit; font-size: 0.82rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; transition: border-color 0.2s, background 0.2s, scale 0.2s var(--ease-spring); }
+.type-toggle:hover:not(:disabled) { border-color: var(--accent); scale: 1.05; }
+/* Fond assombri : le blanc sur l'accent clair du thème sombre serait trop peu contrasté pour ce petit texte. */
+.type-toggle[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 75%, #000); border-color: var(--accent); color: #fff; text-decoration: line-through; }
+.type-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .cards-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 1.75rem; align-items: start; }
 .filters-side { flex-direction: column; align-items: stretch; flex-wrap: nowrap; position: sticky; top: 5rem; max-height: calc(100vh - 6rem); overflow-y: auto; padding: 1.1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 0; scrollbar-width: thin; }

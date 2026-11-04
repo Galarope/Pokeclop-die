@@ -3,7 +3,7 @@ import { clearCache } from './lib/cache';
 import { applyPatch, shouldReplaceHistory } from './hooks/useUrlState';
 import { resolveTeamName } from './lib/savedTeams';
 import { clampTop } from './components/MusteboueeSwarm';
-import { tcgdex } from './sources/tcgdex';
+import { buildCardsUrl, MAX_DEX_NUMBER, tcgdex } from './sources/tcgdex';
 import type { CardBrief } from './domain/types';
 
 describe('useUrlState', () => {
@@ -37,6 +37,77 @@ describe('mustébouées', () => {
     expect(clampTop(3000, 100, 800)).toBe(700);
     expect(clampTop(300, 100, 800)).toBe(300);
     expect(clampTop(10, 100, 50)).toBe(0);
+  });
+});
+
+describe('filtre par bloc', () => {
+  it('compare les codes d\'extension exactement (le bloc Base ne doit pas attraper bwp via wp)', () => {
+    const url = decodeURIComponent(buildCardsUrl({ lang: 'fr', setIds: ['base1', 'wp'] }));
+    expect(url).toContain('set.id=eq:base1|wp');
+  });
+});
+
+describe('plage de n° de Pokédex', () => {
+  beforeEach(() => clearCache());
+  afterEach(() => vi.unstubAllGlobals());
+
+  const askedNumbers = (fetchMock: ReturnType<typeof vi.fn>) =>
+    fetchMock.mock.calls.map(([url]) => Number(decodeURIComponent(String(url)).match(/dexId=eq:(\d+)/)?.[1]));
+
+  it('cherche toute la plage demandée, pas seulement ses 100 premiers numéros', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await tcgdex.searchCards({ lang: 'fr', dexMin: 430, dexMax: 790 });
+    const asked = askedNumbers(fetchMock);
+    expect(asked).toHaveLength(361);
+    expect(Math.min(...asked)).toBe(430);
+    expect(Math.max(...asked)).toBe(790);
+  });
+
+  it('s\'arrête au plus haut numéro possible au lieu de lancer des milliers de requêtes', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await tcgdex.searchCards({ lang: 'fr', dexMin: 1000, dexMax: 99999 });
+    expect(Math.max(...askedNumbers(fetchMock))).toBe(MAX_DEX_NUMBER);
+  });
+
+  it('ne lance plus de requêtes une fois la recherche abandonnée (filtre modifié entre-temps)', async () => {
+    const ctrl = new AbortController();
+    const fetchMock = vi.fn(async () => {
+      if (fetchMock.mock.calls.length === 10) ctrl.abort();
+      return { ok: true, json: async () => [] };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    // Échoue plutôt que de renvoyer une liste partielle qui aurait l'air complète.
+    await expect(tcgdex.searchCards({ lang: 'fr', dexMin: 1, dexMax: 500 }, ctrl.signal)).rejects.toThrow();
+    const afterAbort = fetchMock.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 20));
+    expect(afterAbort).toBeLessThan(20);
+    expect(fetchMock.mock.calls.length).toBe(afterAbort);
+  });
+
+  it('s\'arrête à la première erreur au lieu de continuer la plage pour rien', async () => {
+    const fetchMock = vi.fn(async () =>
+      fetchMock.mock.calls.length === 5 ? { ok: false, status: 404 } : { ok: true, json: async () => [] },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(tcgdex.searchCards({ lang: 'fr', dexMin: 1, dexMax: 500 })).rejects.toThrow();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchMock.mock.calls.length).toBeLessThan(20);
+  });
+
+  it('ne conserve pas chaque numéro d\'une plage dans localStorage (quota)', async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      get length() { return store.size; },
+      key: (i: number) => [...store.keys()][i] ?? null,
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [] })));
+    await tcgdex.searchCards({ lang: 'fr', dexMin: 1, dexMax: 50 });
+    expect([...store.keys()].filter((k) => k.includes('dexId'))).toEqual([]);
   });
 });
 
