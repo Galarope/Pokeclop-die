@@ -28,6 +28,7 @@ npm run coverage:api # mesure la couverture réelle des API (réseau requis)
 | Extension | `/sets/:lang/:id` | page d'une extension (accessible depuis la recherche globale ; plus d'onglet « Extensions ») |
 | Extension | `/sets/:lang/:id` | détail, filtre de rareté, liste complète des cartes, fiche carte (pop-up) |
 | Cartes | `/cards` | filtres langue, Pokémon, bloc (avec ses années) et extension (avec sa date), sorties à partir d'une date, rareté exacte ou minimum, type (un à inclure, plusieurs à exclure), stade, PV min/max, illustrateur (avec suggestions) ; tri par illustrateur (au moins un filtre requis ; exclure des types ne suffit pas seul) |
+| Toutes les pages | — | mini-jeu de capture avec des Pokémon de toutes les générations, niveaux de rareté, shinies rares et Pokédex des captures sauvegardé localement |
 
 ## Architecture
 

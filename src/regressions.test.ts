@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCache } from './lib/cache';
 import { applyPatch, shouldReplaceHistory } from './hooks/useUrlState';
 import { resolveTeamName } from './lib/savedTeams';
-import { clampTop } from './components/MusteboueeSwarm';
+import { clampTop, MAX_DELAY_MS, MIN_DELAY_MS, nextSpawnDelay, parseCaughtDex, rollRarity, viewCaught } from './components/MusteboueeSwarm';
 import { buildCardsUrl, MAX_DEX_NUMBER, tcgdex } from './sources/tcgdex';
 import type { CardBrief } from './domain/types';
 
@@ -37,6 +37,49 @@ describe('mustébouées', () => {
     expect(clampTop(3000, 100, 800)).toBe(700);
     expect(clampTop(300, 100, 800)).toBe(300);
     expect(clampTop(10, 100, 50)).toBe(0);
+  });
+
+  it('tire une rareté selon des seuils qui deviennent plus rares', () => {
+    expect(rollRarity(0)).toBe('commun');
+    expect(rollRarity(0.6)).toBe('peu-commun');
+    expect(rollRarity(0.85)).toBe('rare');
+    expect(rollRarity(0.95)).toBe('épique');
+    expect(rollRarity(0.99)).toBe('légendaire');
+    expect(rollRarity(0.999)).toBe('fabuleux');
+  });
+
+  it('fait apparaître un Pokémon toutes les 3 à 9 minutes', () => {
+    expect(MIN_DELAY_MS).toBe(3 * 60_000);
+    expect(MAX_DELAY_MS).toBe(9 * 60_000);
+    expect(nextSpawnDelay(0)).toBe(MIN_DELAY_MS);
+    expect(nextSpawnDelay(1)).toBe(MAX_DELAY_MS);
+  });
+
+  it('trie le Pokédex des captures et filtre les shinies', () => {
+    const e = (id: number, count: number, shinyCount: number, last: string) => ({ id, count, shinyCount, firstCaughtAt: last, lastCaughtAt: last });
+    const list = [e(25, 1, 0, '2026-01-02'), e(4, 3, 1, '2026-01-01'), e(150, 2, 0, '2026-01-03')];
+    expect(viewCaught(list, 'date', false).map((c) => c.id)).toEqual([150, 25, 4]);
+    expect(viewCaught(list, 'number', false).map((c) => c.id)).toEqual([4, 25, 150]);
+    expect(viewCaught(list, 'count', false).map((c) => c.id)).toEqual([4, 150, 25]);
+    expect(viewCaught(list, 'number', true).map((c) => c.id)).toEqual([4]);
+  });
+
+  it('nettoie les entrées invalides du Pokédex des captures', () => {
+    expect(parseCaughtDex(JSON.stringify([
+      { id: 25, count: 2, shinyCount: 8 },
+      { id: -1, count: 1, shinyCount: 0 },
+      { id: 4, count: 0, shinyCount: 0 },
+      null,
+    ]))).toEqual([
+      {
+        id: 25,
+        count: 2,
+        shinyCount: 2,
+        firstCaughtAt: new Date(0).toISOString(),
+        lastCaughtAt: new Date(0).toISOString(),
+      },
+    ]);
+    expect(parseCaughtDex('{invalide')).toEqual([]);
   });
 });
 
