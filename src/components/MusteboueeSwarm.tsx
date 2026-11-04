@@ -38,10 +38,21 @@ export function MusteboueeCounter() {
   const n = useSyncExternalStore(subscribe, readCaught, () => 0);
   return (
     <span className="caught-counter" title="Mustébouées attrapées">
-      Mustébouées attrapées : <strong>{n}</strong>
+      <img src={IMAGE} alt="" width={26} height={26} />
+      <span className="caught-label">Mustébouées attrapées : </span>
+      <strong key={n}>{n}</strong>
     </span>
   );
 }
+
+interface CatchPop {
+  id: number;
+  x: number;
+  y: number;
+}
+
+/** Durée de l'animation « +1 » (catch-up dans global.css). */
+const POP_MS = 900;
 
 interface Spawn {
   id: number;
@@ -91,6 +102,7 @@ function usePageHeight(): number {
 
 export function MusteboueeSwarm() {
   const [items, setItems] = useState<Spawn[]>(loadItems);
+  const [pops, setPops] = useState<CatchPop[]>([]);
   const pageHeight = usePageHeight();
 
   useEffect(() => {
@@ -133,14 +145,29 @@ export function MusteboueeSwarm() {
           className="mustebouee-spawn"
           aria-label="Mustébouée"
           style={{ left: `min(${m.left}%, calc(100% - ${m.size}px))`, top: clampTop(m.top, m.size, pageHeight), width: m.size, height: m.size }}
-          onClick={() => {
+          onClick={(e) => {
             addCaught();
             setItems((cur) => cur.filter((x) => x.id !== m.id));
+            // Centre de la mascotte plutôt que le pointeur : au clavier (Entrée), le clic n'a pas de position.
+            const r = e.currentTarget.getBoundingClientRect();
+            const pop = { id: m.id, x: r.left + r.width / 2, y: r.top + r.height / 2 };
+            setPops((cur) => [...cur, pop]);
+            // Retrait par minuteur (et non animationend) : sans animation (mouvement réduit), l'événement ne viendrait jamais.
+            setTimeout(() => setPops((cur) => cur.filter((x) => x !== pop)), POP_MS);
           }}
         >
           <img src={IMAGE} alt="" draggable={false} />
         </button>
       ))}
+      {pops.length > 0 && (
+        <div className="catch-layer" aria-hidden="true">
+          {pops.map((p) => (
+            <span key={p.id} className="catch-pop" style={{ left: p.x, top: p.y }}>
+              +1
+            </span>
+          ))}
+        </div>
+      )}
     </>
   );
 }

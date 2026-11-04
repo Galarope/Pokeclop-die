@@ -2,12 +2,31 @@ import { useDeferredValue, useMemo } from 'react';
 import { SelectField, TextField } from '../components/Fields';
 import { PokemonModal } from '../components/PokemonModal';
 import { PokemonTile } from '../components/Pokemon';
-import { Empty, ErrorBox, Loading } from '../components/Status';
+import { Empty, ErrorBox, Loading, SkeletonGrid } from '../components/Status';
+import type { PokemonSummary } from '../domain/types';
 import { generationLabel } from '../lib/utils';
 import { usePokemonList } from '../hooks/usePokemonList';
 import { useUrlState } from '../hooks/useUrlState';
 import { normalize } from '../lib/utils';
 
+/** Les trois mascottes du site (celles des curseurs) : Axoloto, Mustébouée au centre, Pikachu. */
+const MASCOTS = [
+  { id: 194, className: 'mascot mascot-left' },
+  { id: 418, className: 'mascot mascot-main' },
+  { id: 25, className: 'mascot mascot-right' },
+];
+
+function Mascots({ data }: { data?: PokemonSummary[] }) {
+  if (!data) return <div className="mascots" aria-hidden="true" />;
+  return (
+    <div className="mascots" aria-hidden="true">
+      {MASCOTS.map((m) => {
+        const p = data.find((x) => x.id === m.id);
+        return p ? <img key={m.id} className={m.className} src={p.imageUrl} alt="" width={200} height={200} /> : null;
+      })}
+    </div>
+  );
+}
 
 export function PokedexPage() {
   const { data, error, loading, reload } = usePokemonList();
@@ -44,18 +63,30 @@ export function PokedexPage() {
 
   return (
     <>
-      <h1>Pokédex</h1>
-      <form className="filters" onSubmit={(e) => e.preventDefault()} aria-label="Filtres du Pokédex">
+      <header className="page-hero dex-hero">
+        <div>
+          <p className="eyebrow">Encyclopédie Pokémon & JCC</p>
+          <h1>Pokédex</h1>
+          <p className="lede">Chaque espèce, ses formes, ses évolutions et toutes ses cartes, en français et en anglais.</p>
+        </div>
+        <Mascots data={data} />
+      </header>
+      <form className="filters filters-bar" onSubmit={(e) => e.preventDefault()} aria-label="Filtres du Pokédex">
         <TextField label="Nom ou numéro" value={values.q} onChange={(v) => set({ q: v })} placeholder="Pikachu, 25…" />
         <SelectField label="Génération" value={values.gen} onChange={(v) => set({ gen: v })} options={gens} />
         <SelectField label="Type" value={values.type} onChange={(v) => set({ type: v })} options={types} />
       </form>
-      {loading && !data && <Loading label="Chargement des Pokémon…" />}
+      {loading && !data && (
+        <>
+          <Loading label="Chargement des Pokémon…" />
+          <SkeletonGrid />
+        </>
+      )}
       {error && <ErrorBox error={error} onRetry={reload} />}
       {data && (
         <>
-          <p className="muted" role="status">
-            {filtered.length} Pokémon
+          <p className="result-count" role="status">
+            <strong>{filtered.length}</strong> Pokémon
           </p>
           {filtered.length ? (
             <ul className="grid pokemon-grid" onClick={onGridClick}>

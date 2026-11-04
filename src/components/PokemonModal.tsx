@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { getPokemonDetail } from '../api/pokeapi';
 import { PokemonCards } from './PokemonCards';
 import { generationLabel } from '../lib/utils';
-import { pad, TypeBadge } from './Pokemon';
+import { pad, TypeBadge, typeVars } from './Pokemon';
 import { ErrorBox, Loading, Val } from './Status';
 import type { EvolutionNode, PokemonSummary, StatKey } from '../domain/types';
 import { STAT_KEYS } from '../domain/types';
@@ -21,12 +21,17 @@ const STAT_LABELS: Record<StatKey, string> = {
 const meters = (dm?: number) => (dm === undefined ? undefined : `${(dm / 10).toLocaleString('fr-FR')} m`);
 const kilos = (hg?: number) => (hg === undefined ? undefined : `${(hg / 10).toLocaleString('fr-FR')} kg`);
 
+/** Valeur maximale possible d'une statistique de base : la barre est à l'échelle réelle, jamais étirée. */
+const STAT_MAX = 255;
+
 function Stats({ stats }: { stats: Partial<Record<StatKey, number>> }) {
+  const values = STAT_KEYS.map((k) => stats[k]);
+  const total = values.every((v) => v !== undefined) ? values.reduce<number>((a, v) => a + (v ?? 0), 0) : undefined;
   return (
     <table className="stats">
       <caption className="sr-only">Statistiques de base</caption>
       <tbody>
-        {STAT_KEYS.map((k) => (
+        {STAT_KEYS.map((k, i) => (
           <tr key={k}>
             <th scope="row">{STAT_LABELS[k]}</th>
             <td>
@@ -34,13 +39,20 @@ function Stats({ stats }: { stats: Partial<Record<StatKey, number>> }) {
             </td>
             <td>
               {stats[k] !== undefined && (
-                <meter min={0} max={255} value={stats[k]} aria-hidden="true">
-                  {stats[k]}
-                </meter>
+                <span className="stat-bar" aria-hidden="true">
+                  <span style={{ '--v': Math.min(1, stats[k]! / STAT_MAX), '--n': i } as CSSProperties} />
+                </span>
               )}
             </td>
           </tr>
         ))}
+        {total !== undefined && (
+          <tr className="stat-total">
+            <th scope="row">Total</th>
+            <td>{total}</td>
+            <td />
+          </tr>
+        )}
       </tbody>
     </table>
   );
@@ -123,20 +135,20 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
       }}
       onClick={(e) => e.target === ref.current && onClose()}
     >
-      <div className="pokemon-modal-body">
+      <div className="pokemon-modal-body" style={summary ? typeVars(summary.types) : undefined}>
         <div className="modal-bar">
           <span />
           <div className="modal-nav">
           {prev ? (
             <button type="button" className="btn" onClick={() => onSelect(prev.id)}>
-              ← {prev.nameFr ?? prev.nameEn}
+              <img src={prev.imageUrl} alt="" width={34} height={34} /> ← {prev.nameFr ?? prev.nameEn}
             </button>
           ) : (
             <span />
           )}
           {next ? (
             <button type="button" className="btn" onClick={() => onSelect(next.id)}>
-              {next.nameFr ?? next.nameEn} →
+              {next.nameFr ?? next.nameEn} → <img src={next.imageUrl} alt="" width={34} height={34} />
             </button>
           ) : (
             <span />
@@ -151,8 +163,14 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
           list.loading ? <Loading /> : list.error ? <ErrorBox error={list.error} onRetry={list.reload} /> : <p className="status error">Pokémon introuvable (n° {id}).</p>
         ) : (
           <>
-            <header className="poke-hero">
-              <img src={summary.imageUrl} alt={summary.nameFr ?? summary.nameEn} width={220} height={220} />
+            {/* Clé = id : les animations d'entrée rejouent quand on passe au Pokémon précédent/suivant. */}
+            <header className="poke-hero" key={summary.id}>
+              <span className="poke-hero-num" aria-hidden="true">
+                {pad(summary.id)}
+              </span>
+              <div className="poke-hero-art">
+                <img src={summary.imageUrl} alt={summary.nameFr ?? summary.nameEn} width={280} height={280} />
+              </div>
               <div>
                 <p className="muted num">{pad(summary.id)}</p>
                 <h2>{summary.nameFr ?? summary.nameEn ?? summary.slug}</h2>
@@ -192,13 +210,13 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
                     </>
                   )}
                 </dl>
-                {(d?.flavorFr || d?.flavorEn) && <p>{d.flavorFr ?? d.                flavorEn}</p>}
+                {(d?.flavorFr || d?.flavorEn) && <p className="flavor">{d.flavorFr ?? d.flavorEn}</p>}
               </div>
             </header>
 
             <section className="panel" aria-labelledby="stats-title">
               <h3 id="stats-title">Statistiques de base</h3>
-              <Stats stats={summary.stats} />
+              <Stats key={summary.id} stats={summary.stats} />
             </section>
 
             {detail.loading && <Loading label="Formes et évolutions…" />}
@@ -209,7 +227,7 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
                   <h3 id="forms-title">Formes ({d.forms.length})</h3>
                   <ul className="grid forms-grid">
                     {d.forms.map((f) => (
-                      <li key={f.slug} className="tile static">
+                      <li key={f.slug} className="tile static typed form-tile" style={typeVars(f.types)}>
                         <span className="form-images">
                           {f.imageUrl ? (
                             <figure>

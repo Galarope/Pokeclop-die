@@ -71,8 +71,8 @@ export function SetPage() {
       </form>
       {filtered.loading && values.rarity && <Loading />}
       {filtered.error && <ErrorBox error={filtered.error} onRetry={filtered.reload} />}
-      <p className="muted" role="status">
-        {cards.length} carte{cards.length > 1 ? 's' : ''}
+      <p className="result-count" role="status">
+        <strong>{cards.length}</strong> carte{cards.length > 1 ? 's' : ''}
       </p>
       {slice.length ? (
         <ul className="grid cards-grid">
