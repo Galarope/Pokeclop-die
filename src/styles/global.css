@@ -140,6 +140,11 @@ span.eff { display: inline-block; width: 2rem; padding: 0.15rem 0; border-radius
 .field-range legend { padding: 0; margin-bottom: 0.2rem; }
 .field-range input { flex: 1 1 0; min-width: 0; font: inherit; padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); }
 .field-range small { flex-basis: 100%; }
+.type-toggle { font: inherit; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; }
+.type-toggle:hover:not(:disabled) { border-color: var(--accent); }
+/* Fond assombri : le blanc sur l'accent clair du thème sombre serait trop peu contrasté pour ce petit texte. */
+.type-toggle[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 75%, #000); border-color: var(--accent); color: #fff; text-decoration: line-through; }
+.type-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
 .filters-toggle { display: none; margin-bottom: 0.75rem; }
 @media (max-width: 800px) {
   .cards-layout { grid-template-columns: 1fr; }

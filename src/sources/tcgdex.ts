@@ -1,6 +1,7 @@
 import { cached, TTL } from '../lib/cache';
 import { fetchJson } from '../lib/http';
-import type { CardBrief, CardDetail, CardQuery, CardSerie, CardSet, CardSetDetail, LangCode, Paged } from '../domain/types';
+import { mapLimit } from '../lib/utils';
+import type { CardBrief, CardDetail, CardQuery, CardSerie, CardSet, CardSetDetail, LangCode, Paged, SetRelease } from '../domain/types';
 import type { CardSource } from './types';
 
 const BASE = 'https://api.tcgdex.net/v2';
@@ -28,6 +29,20 @@ interface RawSet extends RawSetBrief {
   releaseDate?: string;
   serie?: { id?: string; name?: string };
   cards?: RawBrief[];
+}
+
+interface RawGqlSet {
+  id: string;
+  releaseDate?: string;
+  serie?: { id?: string };
+}
+
+const SET_RELEASES_QUERY = '{ sets { id releaseDate serie { id } } }';
+
+/** Liste d'illustrateurs de TCGdex sans doublons ni blancs, triée sans tenir compte de la casse ni des accents. */
+export function cleanIllustrators(raw: string[]): string[] {
+  const names = [...new Set(raw.map((s) => s.trim()).filter(Boolean))];
+  return names.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 }
 
 interface RawCard extends RawBrief {
@@ -78,9 +93,12 @@ export function buildCardsUrl(q: CardQuery): string {
   if (q.name) p.set('name', q.name);
   if (q.dexId !== undefined) p.set('dexId', `eq:${q.dexId}`);
   if (q.setId) p.set('set.id', `eq:${q.setId}`);
-  else if (q.setIds?.length) p.set('set.id', q.setIds.join('|'));
-  if (q.rarity) p.set('rarity', `eq:${q.rarity}`);
+  // Sans `eq:`, TCGdex compare par « contient » : le code `wp` (bloc Base) attrapait aussi `bwp`.
+  else if (q.setIds?.length) p.set('set.id', `eq:${q.setIds.join('|')}`);
+  if (q.rarity) p.append('rarity', `eq:${q.rarity}`);
+  if (q.rarities?.length) p.append('rarity', `eq:${q.rarities.join('|')}`);
   if (q.type) p.set('types', `eq:${q.type}`);
+  for (const t of q.excludeTypes ?? []) p.append('types', `neq:${t}`);
   if (q.stage) p.set('stage', `eq:${q.stage}`);
   if (q.hpMin !== undefined) p.append('hp', `gte:${q.hpMin}`);
   if (q.hpMax !== undefined) p.append('hp', `lte:${q.hpMax}`);
@@ -97,15 +115,18 @@ export function buildCardsUrl(q: CardQuery): string {
   return `${BASE}/${q.lang}/cards${qs ? `?${qs}` : ''}`;
 }
 
-/** Nombre maximal de numéros de Pokédex par recherche par plage (une requête par numéro). */
-export const MAX_DEX_RANGE = 100;
+/**
+ * Plus haut n° de Pokédex cherché par une plage (une requête par numéro) : au-dessus du Pokédex national (1025),
+ * pour qu'une borne comme 9999 ne lance pas des milliers de requêtes vides. À relever si le Pokédex le dépasse.
+ */
+export const MAX_DEX_NUMBER = 1200;
 
-async function searchOne(q: CardQuery): Promise<Paged<CardBrief>> {
+async function searchOne(q: CardQuery, persistent = !q.page): Promise<Paged<CardBrief>> {
   const url = buildCardsUrl(q);
   // Pas de AbortSignal ici : la requête est partagée/dédupliquée par le cache ; useAsync ignore les réponses obsolètes.
   const raw = await cached(`tcgdex:search:${url}`, () => fetchJson<RawBrief[]>(url), {
     ttl: TTL.short,
-    persistent: !q.page,
+    persistent,
   });
   const items = raw.map(toBrief(q.lang));
   const page = q.page ?? 1;
@@ -124,18 +145,28 @@ async function searchOne(q: CardQuery): Promise<Paged<CardBrief>> {
 }
 
 /** L'API ne filtre pas une plage sur dexId (champ tableau) : une requête par numéro, en parallèle limité. */
-async function searchDexRange(q: CardQuery, min: number, max: number): Promise<Paged<CardBrief>> {
+async function searchDexRange(q: CardQuery, min: number, max: number, signal?: AbortSignal): Promise<Paged<CardBrief>> {
   const ids: number[] = [];
   for (let n = min; n <= max; n++) ids.push(n);
   const results: CardBrief[][] = new Array(ids.length);
   let next = 0;
+  let failed = false;
   const worker = async () => {
-    while (next < ids.length) {
+    // Une recherche abandonnée ou en échec cesse de lancer des requêtes ; celles en cours finissent (partagées par le cache).
+    while (next < ids.length && !signal?.aborted && !failed) {
       const i = next++;
-      results[i] = (await searchOne({ ...q, dexId: ids[i], dexMin: undefined, dexMax: undefined })).items;
+      try {
+        // Pas dans localStorage : une large plage y écrirait jusqu'à un millier d'entrées et saturerait le quota.
+        results[i] = (await searchOne({ ...q, dexId: ids[i], dexMin: undefined, dexMax: undefined }, false)).items;
+      } catch (e) {
+        failed = true;
+        throw e;
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(6, ids.length) }, worker));
+  // Les numéros non cherchés laissent des trous : ne jamais renvoyer ce résultat partiel comme complet.
+  if (signal?.aborted) throw new DOMException('Recherche abandonnée', 'AbortError');
   const seen = new Set<string>();
   const items = results.flat().filter((c) => !seen.has(c.id) && seen.add(c.id));
   return { items, page: 1, pageSize: items.length, hasNext: false };
@@ -147,12 +178,12 @@ export const tcgdex: CardSource = {
   homepage: 'https://tcgdex.dev',
   languages: TCGDEX_LANGUAGES,
 
-  async searchCards(q) {
+  async searchCards(q, signal) {
     if (q.dexMin !== undefined || q.dexMax !== undefined) {
       const min = Math.max(1, q.dexMin ?? q.dexMax!);
-      const max = Math.min(min + MAX_DEX_RANGE - 1, q.dexMax ?? q.dexMin!);
+      const max = Math.min(MAX_DEX_NUMBER, q.dexMax ?? q.dexMin!);
       if (max < min) return { items: [], page: 1, pageSize: 0, hasNext: false };
-      return searchDexRange(q, min, max);
+      return searchDexRange(q, min, max, signal);
     }
     return searchOne(q);
   },
@@ -229,6 +260,43 @@ export const tcgdex: CardSource = {
 
   listStages(lang) {
     return cached(`tcgdex:stages:${lang}`, () => fetchJson<string[]>(`${BASE}/${lang}/stages`), { ttl: TTL.week });
+  },
+
+  /**
+   * La liste REST des extensions n'a pas de date : le GraphQL les donne toutes en une requête.
+   * Il ne connaît que les extensions anglaises (dates identiques en français) ; les autres
+   * (ex. exclusivités françaises) sont lues dans leur détail.
+   */
+  listSetReleases(lang) {
+    return cached(
+      `tcgdex:releases:${lang}`,
+      async (): Promise<SetRelease[]> => {
+        const [sets, json] = await Promise.all([
+          tcgdex.listSets(lang),
+          fetchJson<{ data?: { sets: RawGqlSet[] } }>(`${BASE}/graphql`, {
+            init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: SET_RELEASES_QUERY }) },
+          }),
+        ]);
+        if (!json.data) throw new Error('Réponse TCGdex GraphQL invalide');
+        const byId = new Map<string, SetRelease>();
+        for (const s of json.data.sets) if (s.releaseDate) byId.set(s.id, { id: s.id, releaseDate: s.releaseDate, serieId: s.serie?.id });
+        const missing = sets.filter((s) => !byId.has(s.id));
+        const details = await mapLimit(missing, 6, (s) => tcgdex.getSet(lang, s.id));
+        for (const r of details) {
+          // Une liste incomplète serait mise en cache 24 h : l'extension disparaîtrait du filtre par date.
+          if (r.status === 'rejected') throw r.reason;
+          if (r.value.releaseDate) byId.set(r.value.id, { id: r.value.id, releaseDate: r.value.releaseDate, serieId: r.value.serieId });
+        }
+        return sets.flatMap((s) => byId.get(s.id) ?? []);
+      },
+      { ttl: TTL.day },
+    );
+  },
+
+  listIllustrators(lang) {
+    return cached(`tcgdex:illustrators:${lang}`, async () => cleanIllustrators(await fetchJson<string[]>(`${BASE}/${lang}/illustrators`)), {
+      ttl: TTL.week,
+    });
   },
 
   /**
