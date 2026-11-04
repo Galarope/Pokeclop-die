@@ -23,7 +23,7 @@ try {
 export const nextSpawnDelay = (random = Math.random()) => MIN_DELAY_MS + random * (MAX_DELAY_MS - MIN_DELAY_MS);
 const SHINY_ODDS = 1 / 128;
 const POP_MS = 900;
-const CAPTURE_MS = 1300;
+const CAPTURE_MS = 3300;
 const listeners = new Set<() => void>();
 
 export type CatchRarity = 'commun' | 'peu-commun' | 'rare' | 'épique' | 'légendaire' | 'fabuleux';
@@ -46,6 +46,25 @@ export function rollRarity(random = Math.random()): CatchRarity {
   return 'fabuleux';
 }
 
+/** Rareté d'une espèce : fabuleux = Pokémon fabuleux, légendaire = Pokémon légendaire, sinon selon le total de stats de base. */
+export function speciesRarity(p: Pick<PokemonSummary, 'isLegendary' | 'isMythical' | 'stats'>): CatchRarity {
+  if (p.isMythical) return 'fabuleux';
+  if (p.isLegendary) return 'légendaire';
+  const total = Object.values(p.stats).reduce((sum, v) => sum + (v ?? 0), 0);
+  if (total >= 600) return 'épique';
+  if (total >= 500) return 'rare';
+  if (total >= 400) return 'peu-commun';
+  return 'commun';
+}
+
+/** Tire une rareté puis une espèce de cette rareté ; la rareté d'une apparition découle donc toujours de l'espèce. */
+export function pickSpecies(all: PokemonSummary[], randomRarity = Math.random(), randomIndex = Math.random()): PokemonSummary {
+  const wanted = rollRarity(randomRarity);
+  const tier = all.filter((p) => speciesRarity(p) === wanted);
+  const pool = tier.length ? tier : all;
+  return pool[Math.floor(randomIndex * pool.length)];
+}
+
 export interface CaughtPokemon {
   id: number;
   count: number;
@@ -57,7 +76,6 @@ export interface CaughtPokemon {
 interface Spawn {
   id: number;
   pokemonId: number;
-  rarity: CatchRarity;
   shiny: boolean;
   left: number;
   top: number;
@@ -290,11 +308,9 @@ function loadItems(): Spawn[] {
       if (!item || typeof item !== 'object') return [];
       const value = item as Partial<Spawn>;
       if (![value.id, value.left, value.top, value.size].every((n) => typeof n === 'number' && Number.isFinite(n))) return [];
-      const rarity = RARITIES.some((r) => r.id === value.rarity) ? value.rarity as CatchRarity : 'commun';
       return [{
         id: value.id ?? 0,
         pokemonId: Number.isInteger(value.pokemonId) && (value.pokemonId ?? 0) > 0 ? value.pokemonId ?? 418 : 418,
-        rarity,
         shiny: value.shiny === true,
         left: Math.max(0, Math.min(100, value.left ?? 0)),
         top: Math.max(0, value.top ?? 0),
@@ -357,12 +373,11 @@ export function MusteboueeSwarm() {
     };
     // Tirage avec remise : la même espèce peut apparaître (et être capturée) plusieurs fois.
     const spawnOne = () => {
-      const species = pokemon[Math.floor(Math.random() * pokemon.length)];
+      const species = pickSpecies(pokemon);
       const size = 40 + Math.round(Math.random() * 80);
       const spawn: Spawn = {
         id: ++nextId.current,
         pokemonId: species.id,
-        rarity: rollRarity(),
         shiny: Math.random() < SHINY_ODDS,
         left: randomLeft(),
         top: window.scrollY + Math.random() * Math.max(window.innerHeight - size, 0),
@@ -392,12 +407,13 @@ export function MusteboueeSwarm() {
         const species = pokemon?.find((p) => p.id === item.pokemonId);
         if (!species) return null;
         const name = species.nameFr ?? species.nameEn ?? species.slug;
+        const rarity = speciesRarity(species);
         return (
           <button
             key={item.id}
             type="button"
-            className={`mustebouee-spawn rarity-${item.rarity}${item.shiny ? ' is-shiny' : ''}`}
-            aria-label={`Capturer ${name}, rareté ${rarityLabel(item.rarity)}${item.shiny ? ', shiny' : ''}`}
+            className={`mustebouee-spawn rarity-${rarity}${item.shiny ? ' is-shiny' : ''}`}
+            aria-label={`Capturer ${name}, rareté ${rarityLabel(rarity)}${item.shiny ? ', shiny' : ''}`}
             disabled={Boolean(capture)}
             style={{ left: `min(${item.left}%, calc(100% - ${item.size}px))`, top: clampTop(item.top, item.size, pageHeight), width: item.size, height: item.size }}
             onClick={(event) => {
@@ -412,7 +428,7 @@ export function MusteboueeSwarm() {
               };
               setPops((current) => [...current, pop]);
               setTimeout(() => setPops((current) => current.filter((entry) => entry.id !== pop.id)), POP_MS);
-              setCapture({ id: item.id, pokemon: species, rarity: item.rarity, shiny: item.shiny, phase: 'animation' });
+              setCapture({ id: item.id, pokemon: species, rarity, shiny: item.shiny, phase: 'animation' });
               recordCatch(species.id, item.shiny);
             }}
           >

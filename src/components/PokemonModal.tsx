@@ -231,7 +231,7 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
                         <span className="form-images">
                           {f.imageUrl ? (
                             <figure>
-                              <img src={f.imageUrl} alt={`${f.slug}, normal`} width={96} height={96} loading="lazy" />
+                              <img src={f.imageUrl} alt={`${f.nameFr ?? f.nameEn ?? f.slug}, normal`} width={96} height={96} loading="lazy" />
                               <figcaption className="muted small">Normal</figcaption>
                             </figure>
                           ) : (
@@ -239,12 +239,12 @@ export function PokemonModal({ id, onClose, onSelect }: Props) {
                           )}
                           {f.shinyImageUrl && (
                             <figure>
-                              <img src={f.shinyImageUrl} alt={`${f.slug}, shiny`} width={96} height={96} loading="lazy" />
+                              <img src={f.shinyImageUrl} alt={`${f.nameFr ?? f.nameEn ?? f.slug}, shiny`} width={96} height={96} loading="lazy" />
                               <figcaption className="muted small">✨ Shiny</figcaption>
                             </figure>
                           )}
                         </span>
-                        <strong>{f.slug}</strong>
+                        <strong>{f.nameFr ?? f.nameEn ?? f.slug}</strong>
                         <span className="badges">
                           {f.types.map((t) => (
                             <TypeBadge key={t.slug} type={t} />

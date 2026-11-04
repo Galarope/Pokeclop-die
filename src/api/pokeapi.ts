@@ -26,6 +26,8 @@ interface GqlSpecies {
   name: string;
   generation_id: number;
   evolves_from_species_id?: number | null;
+  is_legendary?: boolean | null;
+  is_mythical?: boolean | null;
   pokemon_v2_pokemonspeciesnames: { name: string; language_id: number }[];
   pokemon_v2_pokemons: {
     height: number | null;
@@ -39,7 +41,7 @@ interface GqlSpecies {
 
 const LIST_QUERY = `query {
   pokemon_v2_pokemonspecies(order_by: {id: asc}) {
-    id name generation_id evolves_from_species_id
+    id name generation_id evolves_from_species_id is_legendary is_mythical
     pokemon_v2_pokemonspeciesnames(where: {language_id: {_in: [${FR}, ${EN}]}}) { name language_id }
     pokemon_v2_pokemons(where: {is_default: {_eq: true}}) {
       height weight
@@ -70,6 +72,8 @@ export function mapSpecies(s: GqlSpecies): PokemonSummary {
     nameEn: name(EN),
     generation: s.generation_id,
     evolvesFromId: s.evolves_from_species_id ?? undefined,
+    isLegendary: s.is_legendary ?? undefined,
+    isMythical: s.is_mythical ?? undefined,
     types: (p?.pokemon_v2_pokemontypes ?? []).map((t) => ({
       slug: t.pokemon_v2_type.name,
       labelFr: t.pokemon_v2_type.pokemon_v2_typenames[0]?.name,
@@ -83,7 +87,7 @@ export function mapSpecies(s: GqlSpecies): PokemonSummary {
 
 export function getPokemonList(): Promise<PokemonSummary[]> {
   return cached(
-    'pokeapi:list:v2',
+    'pokeapi:list:v3',
     async () => {
       const json = await fetchJson<{ data?: { pokemon_v2_pokemonspecies: GqlSpecies[] }; errors?: unknown }>(GRAPHQL, {
         init: {
@@ -110,6 +114,7 @@ interface RestSpecies {
 
 interface RestPokemon {
   name: string;
+  forms?: { url: string }[];
   height: number;
   weight: number;
   types: { slot: number; type: { name: string } }[];
@@ -161,7 +166,7 @@ const toTypes = (t: RestPokemon['types'], labels: Map<string, string | undefined
 
 export async function getPokemonDetail(summary: PokemonSummary, allTypes: PokemonSummary[]): Promise<PokemonDetail> {
   return cached(
-    `pokeapi:detail:v3:${summary.id}`,
+    `pokeapi:detail:v4:${summary.id}`,
     async () => {
       const labels = new Map<string, string | undefined>();
       allTypes.forEach((p) => p.types.forEach((t) => labels.set(t.slug, t.labelFr)));
@@ -186,8 +191,17 @@ export async function getPokemonDetail(summary: PokemonSummary, allTypes: Pokemo
                   return { slug: a.ability.name, nameFr: nameFr ?? undefined, hidden: a.is_hidden };
                 }),
             );
+            // Les noms localisés d'une forme sont sur /pokemon-form ; la forme par défaut n'en a pas (on reprend le nom de l'espèce).
+            const formNames = p.forms?.[0]
+              ? await fetchJson<{ names: { name: string; language: { name: string } }[] }>(p.forms[0].url)
+                  .then((f) => f.names)
+                  .catch(() => [])
+              : [];
+            const formName = (l: string) => formNames.find((n) => n.language.name === l)?.name || undefined;
             return {
               slug: p.name,
+              nameFr: formName('fr') ?? (v.is_default ? summary.nameFr : undefined),
+              nameEn: formName('en') ?? (v.is_default ? summary.nameEn : undefined),
               isDefault: v.is_default,
               types: toTypes(p.types, labels),
               abilities,

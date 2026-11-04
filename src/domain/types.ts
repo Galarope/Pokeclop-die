@@ -17,6 +17,8 @@ export interface PokemonSummary {
   generation: number;
   /** espèce dont celle-ci évolue (absent pour un stade de base) */
   evolvesFromId?: number;
+  isLegendary?: boolean;
+  isMythical?: boolean;
   types: PokemonType[];
   /** décimètres, tel que fourni par PokéAPI */
   height?: number;
@@ -34,6 +36,8 @@ export interface PokemonAbility {
 
 export interface PokemonForm {
   slug: string;
+  nameFr?: string;
+  nameEn?: string;
   isDefault: boolean;
   types: PokemonType[];
   abilities?: PokemonAbility[];

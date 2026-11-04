@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCache } from './lib/cache';
 import { applyPatch, shouldReplaceHistory } from './hooks/useUrlState';
 import { resolveTeamName } from './lib/savedTeams';
-import { clampTop, MAX_DELAY_MS, MIN_DELAY_MS, nextSpawnDelay, parseCaughtDex, rollRarity, viewCaught } from './components/MusteboueeSwarm';
+import { clampTop, MAX_DELAY_MS, MIN_DELAY_MS, nextSpawnDelay, parseCaughtDex, pickSpecies, rollRarity, speciesRarity, viewCaught } from './components/MusteboueeSwarm';
 import { buildCardsUrl, MAX_DEX_NUMBER, tcgdex } from './sources/tcgdex';
 import type { CardBrief } from './domain/types';
 
@@ -62,6 +62,26 @@ describe('mustébouées', () => {
     expect(viewCaught(list, 'number', false).map((c) => c.id)).toEqual([4, 25, 150]);
     expect(viewCaught(list, 'count', false).map((c) => c.id)).toEqual([4, 150, 25]);
     expect(viewCaught(list, 'number', true).map((c) => c.id)).toEqual([4]);
+  });
+
+  it('déduit la rareté de l\'espèce (fabuleux/légendaire, puis total de stats)', () => {
+    const stats = (total: number) => ({ hp: total });
+    expect(speciesRarity({ isMythical: true, stats: stats(300) })).toBe('fabuleux');
+    expect(speciesRarity({ isLegendary: true, stats: stats(580) })).toBe('légendaire');
+    expect(speciesRarity({ stats: stats(600) })).toBe('épique');
+    expect(speciesRarity({ stats: stats(500) })).toBe('rare');
+    expect(speciesRarity({ stats: stats(400) })).toBe('peu-commun');
+    expect(speciesRarity({ stats: stats(318) })).toBe('commun');
+  });
+
+  it('tire l\'espèce dans la rareté demandée', () => {
+    const all = [
+      { id: 1, stats: { hp: 300 } },
+      { id: 2, stats: { hp: 300 } },
+      { id: 3, isMythical: true, stats: { hp: 600 } },
+    ] as Parameters<typeof pickSpecies>[0];
+    expect(pickSpecies(all, 0.9995, 0.9).id).toBe(3);
+    expect(pickSpecies(all, 0, 0.9).id).toBe(2);
   });
 
   it('nettoie les entrées invalides du Pokédex des captures', () => {
