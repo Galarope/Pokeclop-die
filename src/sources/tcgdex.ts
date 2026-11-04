@@ -204,12 +204,13 @@ export const tcgdex: CardSource = {
 
   getSet(lang, id) {
     return cached(
-      `tcgdex:set:${lang}:${id}`,
+      `tcgdex:set:v2:${lang}:${id}`,
       async (): Promise<CardSetDetail> => {
         const s = await fetchJson<RawSet>(`${BASE}/${lang}/sets/${encodeURIComponent(id)}`);
         return {
           ...toSetBase(lang, s),
           releaseDate: s.releaseDate,
+          serieId: s.serie?.id,
           serieName: s.serie?.name,
           cards: (s.cards ?? []).map(toBrief(lang)),
         };
@@ -238,9 +239,9 @@ export const tcgdex: CardSource = {
     return cached(
       `tcgdex:img:v3:${card.lang}:${card.id}`,
       async (): Promise<string | null> => {
-        const set = await fetchJson<RawSet>(`${BASE}/${card.lang}/sets/${encodeURIComponent(card.setId)}`);
-        if (!set.serie?.id) return null;
-        const base = `https://assets.tcgdex.net/${card.lang}/${set.serie.id}/${card.setId}/${card.localId}`;
+        const set = await tcgdex.getSet(card.lang, card.setId);
+        if (!set.serieId) return null;
+        const base = `https://assets.tcgdex.net/${card.lang}/${set.serieId}/${card.setId}/${card.localId}`;
         // Les assets ont un en-tête CORS invalide : on teste le chargement via un <img>, pas via fetch.
         const load = (src: string) =>
           new Promise<boolean>((resolve) => {

@@ -99,6 +99,7 @@ export interface CardSet {
   cardCountOfficial?: number;
   cardCountTotal?: number;
   releaseDate?: string;
+  serieId?: string;
   serieName?: string;
 }
 

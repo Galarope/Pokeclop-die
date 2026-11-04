@@ -38,7 +38,7 @@ export function MusteboueeCounter() {
   const n = useSyncExternalStore(subscribe, readCaught, () => 0);
   return (
     <span className="caught-counter" title="Mustébouées attrapées">
-      Mustébouées attrapés : <strong>{n}</strong>
+      Mustébouées attrapées : <strong>{n}</strong>
     </span>
   );
 }
@@ -67,8 +67,31 @@ function loadItems(): Spawn[] {
   }
 }
 
+/** Garde la mascotte dans la page : les positions stockées viennent peut-être d'une page plus longue. */
+export function clampTop(top: number, size: number, pageHeight: number): number {
+  return Math.max(0, Math.min(top, pageHeight - size));
+}
+
+/** Hauteur du contenu de la page, hors mascottes (absolues, donc sans effet sur la hauteur du body). */
+function usePageHeight(): number {
+  const [height, setHeight] = useState(() => Math.max(document.body.offsetHeight, window.innerHeight));
+  useEffect(() => {
+    const measure = () => setHeight(Math.max(document.body.offsetHeight, window.innerHeight));
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    window.addEventListener('resize', measure);
+    measure();
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+  return height;
+}
+
 export function MusteboueeSwarm() {
   const [items, setItems] = useState<Spawn[]>(loadItems);
+  const pageHeight = usePageHeight();
 
   useEffect(() => {
     try {
@@ -109,7 +132,7 @@ export function MusteboueeSwarm() {
           type="button"
           className="mustebouee-spawn"
           aria-label="Mustébouée"
-          style={{ left: `min(${m.left}%, calc(100% - ${m.size}px))`, top: m.top, width: m.size, height: m.size }}
+          style={{ left: `min(${m.left}%, calc(100% - ${m.size}px))`, top: clampTop(m.top, m.size, pageHeight), width: m.size, height: m.size }}
           onClick={() => {
             addCaught();
             setItems((cur) => cur.filter((x) => x.id !== m.id));

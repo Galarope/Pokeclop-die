@@ -62,7 +62,7 @@ export function Mustebouee() {
       <div className="mustebouee-body">
         <img src={IMAGE} alt="Mustébouée" width={260} height={260} />
         <button type="button" className="btn primary" onClick={admit}>
-          J'admet que mustébouée est le meilleur pokémon, que c'est le plus mignon et qu'il est supérieur en tout point à pikachu ou axoloto
+          J'admets que mustébouée est le meilleur pokémon, que c'est le plus mignon et qu'il est supérieur en tout point à pikachu ou axoloto
         </button>
       </div>
     </dialog>

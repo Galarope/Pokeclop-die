@@ -11,6 +11,11 @@ export interface SavedTeam {
 const KEY = 'pokeclopedie:teams';
 const FORMAT = 'pokeclopedie-teams';
 
+/** Nom saisi nettoyé ; un nom vide garde l'ancien. */
+export function resolveTeamName(input: string, current: string): string {
+  return input.trim() || current;
+}
+
 function load(): SavedTeam[] {
   try {
     return sanitize(JSON.parse(localStorage.getItem(KEY) ?? '[]'));
@@ -54,7 +59,7 @@ export function useSavedTeams() {
     setTeams((l) => [...l, { id: crypto.randomUUID(), name: name.trim() || `Équipe ${l.length + 1}`, createdAt: new Date().toISOString(), members }]);
   }, []);
   const remove = useCallback((id: string) => setTeams((l) => l.filter((t) => t.id !== id)), []);
-  const rename = useCallback((id: string, name: string) => setTeams((l) => l.map((t) => (t.id === id ? { ...t, name: name.trim() || t.name } : t))), []);
+  const rename = useCallback((id: string, name: string) => setTeams((l) => l.map((t) => (t.id === id ? { ...t, name: resolveTeamName(name, t.name) } : t))), []);
 
   const exportJson = useCallback(() => JSON.stringify({ format: FORMAT, version: 1, teams }, null, 2), [teams]);
 

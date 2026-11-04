@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSavedTeams } from '../lib/savedTeams';
+import { resolveTeamName, useSavedTeams } from '../lib/savedTeams';
 import { Link } from 'react-router-dom';
 import { TYPES, TYPE_FR, effectiveness, type TypeSlug } from '../data/typeChart';
 import type { PokemonSummary } from '../domain/types';
@@ -327,7 +327,12 @@ function SavedTeams({ pokemon, api }: { pokemon: PokemonSummary[]; api: ReturnTy
                 aria-label="Nom de l’équipe"
                 maxLength={80}
                 defaultValue={t.name}
-                onBlur={(e) => e.target.value !== t.name && api.rename(t.id, e.target.value)}
+                onBlur={(e) => {
+                  // Le champ n'est pas contrôlé : un nom vide est refusé par `rename`, donc on restaure l'affichage nous-mêmes.
+                  const name = resolveTeamName(e.target.value, t.name);
+                  e.target.value = name;
+                  if (name !== t.name) api.rename(t.id, name);
+                }}
               />
               <span className="muted small">{new Date(t.createdAt).toLocaleDateString('fr-FR')}</span>
               <button type="button" className="btn small-btn btn-danger"               onClick={() => window.confirm(`Supprimer « ${t.name} » ?`) && api.remove(t.id)}>

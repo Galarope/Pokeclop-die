@@ -181,7 +181,6 @@ a.tile:hover, button.tile:hover { border-color: var(--accent); }
 .tile.static { cursor: default; }
 .evo-tree, .evo-tree ul { list-style: none; padding-left: 1.5rem; margin: 0.3rem 0; border-left: 2px solid var(--border); }
 .evo-tree > li { border: 0; } .evo { display: inline-flex; align-items: center; gap: 0.5rem; }
-.evo[aria-current='page'] { font-weight: 700; }
 
 .lang-group, .set-group { border: 1px solid var(--border); border-radius: var(--radius); margin-block: 0.5rem; padding: 0.2rem 0.8rem; }
 .set-group { background: color-mix(in srgb, var(--panel) 92%, var(--text)); }
