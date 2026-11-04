@@ -336,6 +336,8 @@ main:has(.cards-layout) { width: min(92vw, 2000px); }
 .cards-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 1.75rem; align-items: start; }
 .filters-side { flex-direction: column; align-items: stretch; flex-wrap: nowrap; position: sticky; top: 5rem; max-height: calc(100vh - 6rem); overflow-y: auto; padding: 1.1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 0; scrollbar-width: thin; }
 .filters-side .field { min-width: 0; flex: none; }
+/* Le panneau défile : sans ça, les boutons (overflow: hidden pour leur reflet) se feraient écraser en hauteur. */
+.filters-side > * { flex-shrink: 0; }
 .filters-toggle { display: none; margin-bottom: 0.75rem; }
 @media (max-width: 800px) {
   .cards-layout { grid-template-columns: 1fr; }
