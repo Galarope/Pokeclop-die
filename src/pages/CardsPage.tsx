@@ -7,7 +7,7 @@ import { useAsync } from '../hooks/useAsync';
 import { usePokemonList } from '../hooks/usePokemonList';
 import { useUrlState } from '../hooks/useUrlState';
 import { formatShortDate, NO_MATCH, parseTypeList, resolveSetFilter, serieLabel, serieYears, setIdsReleasedSince } from '../lib/cardFilters';
-import { MAX_DEX_RANGE, tcgdex } from '../sources/tcgdex';
+import { tcgdex } from '../sources/tcgdex';
 import { RARITY_LEVELS, raritiesAtLeast } from '../sources/tcgdexRarities';
 import { LANGUAGE_LABELS } from '../sources/types';
 import { cardSources } from '../sources';
@@ -94,7 +94,7 @@ export function CardsPage() {
   const setsSince = useMemo(() => (from && releases.data ? setIdsReleasedSince(from, releases.data) : undefined), [from, releases.data]);
   const minRarities = useMemo(() => (rarityMin && rarities.data ? raritiesAtLeast(rarityMin, rarities.data) : undefined), [rarityMin, rarities.data]);
   const result = useAsync(
-    () => {
+    (signal) => {
       if (!hasFilter || waiting) return Promise.resolve(undefined);
       return tcgdex.searchCards({
         lang,
@@ -111,7 +111,7 @@ export function CardsPage() {
         hpMax: toNumber(hpMax),
         illustrator: illustrator || undefined,
         sort: values.sort === 'illustrator' ? 'illustrator' : undefined,
-      });
+      }, signal);
     },
     [
       lang, hasFilter, waiting, serieSets.data, setsSince, minRarities, hasDexRange, dexMin, dexMax, values.dex, values.serie, values.set,
@@ -157,7 +157,7 @@ export function CardsPage() {
           <span aria-hidden="true">–</span>
           <input type="number" min={1} aria-label="N° Pokédex max." value={values.dexMax} placeholder="max" onChange={(e) => set({ dexMax: e.target.value })} />
           <small className="muted">
-            {values.dex ? 'Ignoré tant qu’un Pokémon est choisi.' : `Maximum ${MAX_DEX_RANGE} numéros par recherche.`}
+            {values.dex ? 'Ignoré tant qu’un Pokémon est choisi.' : 'Une large plage peut prendre quelques secondes.'}
           </small>
         </fieldset>
         <SelectField

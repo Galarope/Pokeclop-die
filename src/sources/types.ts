@@ -11,7 +11,8 @@ export interface CardSource {
   readonly languages: readonly LangCode[];
   readonly homepage?: string;
 
-  searchCards(q: CardQuery): Promise<Paged<CardBrief>>;
+  /** `signal` : une recherche abandonnée peut cesser de lancer de nouvelles requêtes (son résultat est alors ignoré). */
+  searchCards(q: CardQuery, signal?: AbortSignal): Promise<Paged<CardBrief>>;
   getCard(lang: LangCode, id: string): Promise<CardDetail>;
   listSets(lang: LangCode): Promise<CardSet[]>;
   getSet(lang: LangCode, id: string): Promise<CardSetDetail>;

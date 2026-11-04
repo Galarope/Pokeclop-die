@@ -115,15 +115,18 @@ export function buildCardsUrl(q: CardQuery): string {
   return `${BASE}/${q.lang}/cards${qs ? `?${qs}` : ''}`;
 }
 
-/** Nombre maximal de numéros de Pokédex par recherche par plage (une requête par numéro). */
-export const MAX_DEX_RANGE = 100;
+/**
+ * Plus haut n° de Pokédex cherché par une plage (une requête par numéro) : au-dessus du Pokédex national (1025),
+ * pour qu'une borne comme 9999 ne lance pas des milliers de requêtes vides. À relever si le Pokédex le dépasse.
+ */
+export const MAX_DEX_NUMBER = 1200;
 
-async function searchOne(q: CardQuery): Promise<Paged<CardBrief>> {
+async function searchOne(q: CardQuery, persistent = !q.page): Promise<Paged<CardBrief>> {
   const url = buildCardsUrl(q);
   // Pas de AbortSignal ici : la requête est partagée/dédupliquée par le cache ; useAsync ignore les réponses obsolètes.
   const raw = await cached(`tcgdex:search:${url}`, () => fetchJson<RawBrief[]>(url), {
     ttl: TTL.short,
-    persistent: !q.page,
+    persistent,
   });
   const items = raw.map(toBrief(q.lang));
   const page = q.page ?? 1;
@@ -142,18 +145,28 @@ async function searchOne(q: CardQuery): Promise<Paged<CardBrief>> {
 }
 
 /** L'API ne filtre pas une plage sur dexId (champ tableau) : une requête par numéro, en parallèle limité. */
-async function searchDexRange(q: CardQuery, min: number, max: number): Promise<Paged<CardBrief>> {
+async function searchDexRange(q: CardQuery, min: number, max: number, signal?: AbortSignal): Promise<Paged<CardBrief>> {
   const ids: number[] = [];
   for (let n = min; n <= max; n++) ids.push(n);
   const results: CardBrief[][] = new Array(ids.length);
   let next = 0;
+  let failed = false;
   const worker = async () => {
-    while (next < ids.length) {
+    // Une recherche abandonnée ou en échec cesse de lancer des requêtes ; celles en cours finissent (partagées par le cache).
+    while (next < ids.length && !signal?.aborted && !failed) {
       const i = next++;
-      results[i] = (await searchOne({ ...q, dexId: ids[i], dexMin: undefined, dexMax: undefined })).items;
+      try {
+        // Pas dans localStorage : une large plage y écrirait jusqu'à un millier d'entrées et saturerait le quota.
+        results[i] = (await searchOne({ ...q, dexId: ids[i], dexMin: undefined, dexMax: undefined }, false)).items;
+      } catch (e) {
+        failed = true;
+        throw e;
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(6, ids.length) }, worker));
+  // Les numéros non cherchés laissent des trous : ne jamais renvoyer ce résultat partiel comme complet.
+  if (signal?.aborted) throw new DOMException('Recherche abandonnée', 'AbortError');
   const seen = new Set<string>();
   const items = results.flat().filter((c) => !seen.has(c.id) && seen.add(c.id));
   return { items, page: 1, pageSize: items.length, hasNext: false };
@@ -165,12 +178,12 @@ export const tcgdex: CardSource = {
   homepage: 'https://tcgdex.dev',
   languages: TCGDEX_LANGUAGES,
 
-  async searchCards(q) {
+  async searchCards(q, signal) {
     if (q.dexMin !== undefined || q.dexMax !== undefined) {
       const min = Math.max(1, q.dexMin ?? q.dexMax!);
-      const max = Math.min(min + MAX_DEX_RANGE - 1, q.dexMax ?? q.dexMin!);
+      const max = Math.min(MAX_DEX_NUMBER, q.dexMax ?? q.dexMin!);
       if (max < min) return { items: [], page: 1, pageSize: 0, hasNext: false };
-      return searchDexRange(q, min, max);
+      return searchDexRange(q, min, max, signal);
     }
     return searchOne(q);
   },
