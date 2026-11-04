@@ -1,6 +1,7 @@
 import { cached, TTL } from '../lib/cache';
 import { fetchJson } from '../lib/http';
-import type { CardBrief, CardDetail, CardQuery, CardSerie, CardSet, CardSetDetail, LangCode, Paged } from '../domain/types';
+import { mapLimit } from '../lib/utils';
+import type { CardBrief, CardDetail, CardQuery, CardSerie, CardSet, CardSetDetail, LangCode, Paged, SetRelease } from '../domain/types';
 import type { CardSource } from './types';
 
 const BASE = 'https://api.tcgdex.net/v2';
@@ -28,6 +29,20 @@ interface RawSet extends RawSetBrief {
   releaseDate?: string;
   serie?: { id?: string; name?: string };
   cards?: RawBrief[];
+}
+
+interface RawGqlSet {
+  id: string;
+  releaseDate?: string;
+  serie?: { id?: string };
+}
+
+const SET_RELEASES_QUERY = '{ sets { id releaseDate serie { id } } }';
+
+/** Liste d'illustrateurs de TCGdex sans doublons ni blancs, triée sans tenir compte de la casse ni des accents. */
+export function cleanIllustrators(raw: string[]): string[] {
+  const names = [...new Set(raw.map((s) => s.trim()).filter(Boolean))];
+  return names.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 }
 
 interface RawCard extends RawBrief {
@@ -78,9 +93,12 @@ export function buildCardsUrl(q: CardQuery): string {
   if (q.name) p.set('name', q.name);
   if (q.dexId !== undefined) p.set('dexId', `eq:${q.dexId}`);
   if (q.setId) p.set('set.id', `eq:${q.setId}`);
-  else if (q.setIds?.length) p.set('set.id', q.setIds.join('|'));
-  if (q.rarity) p.set('rarity', `eq:${q.rarity}`);
+  // Sans `eq:`, TCGdex compare par « contient » : le code `wp` (bloc Base) attrapait aussi `bwp`.
+  else if (q.setIds?.length) p.set('set.id', `eq:${q.setIds.join('|')}`);
+  if (q.rarity) p.append('rarity', `eq:${q.rarity}`);
+  if (q.rarities?.length) p.append('rarity', `eq:${q.rarities.join('|')}`);
   if (q.type) p.set('types', `eq:${q.type}`);
+  for (const t of q.excludeTypes ?? []) p.append('types', `neq:${t}`);
   if (q.stage) p.set('stage', `eq:${q.stage}`);
   if (q.hpMin !== undefined) p.append('hp', `gte:${q.hpMin}`);
   if (q.hpMax !== undefined) p.append('hp', `lte:${q.hpMax}`);
@@ -229,6 +247,43 @@ export const tcgdex: CardSource = {
 
   listStages(lang) {
     return cached(`tcgdex:stages:${lang}`, () => fetchJson<string[]>(`${BASE}/${lang}/stages`), { ttl: TTL.week });
+  },
+
+  /**
+   * La liste REST des extensions n'a pas de date : le GraphQL les donne toutes en une requête.
+   * Il ne connaît que les extensions anglaises (dates identiques en français) ; les autres
+   * (ex. exclusivités françaises) sont lues dans leur détail.
+   */
+  listSetReleases(lang) {
+    return cached(
+      `tcgdex:releases:${lang}`,
+      async (): Promise<SetRelease[]> => {
+        const [sets, json] = await Promise.all([
+          tcgdex.listSets(lang),
+          fetchJson<{ data?: { sets: RawGqlSet[] } }>(`${BASE}/graphql`, {
+            init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: SET_RELEASES_QUERY }) },
+          }),
+        ]);
+        if (!json.data) throw new Error('Réponse TCGdex GraphQL invalide');
+        const byId = new Map<string, SetRelease>();
+        for (const s of json.data.sets) if (s.releaseDate) byId.set(s.id, { id: s.id, releaseDate: s.releaseDate, serieId: s.serie?.id });
+        const missing = sets.filter((s) => !byId.has(s.id));
+        const details = await mapLimit(missing, 6, (s) => tcgdex.getSet(lang, s.id));
+        for (const r of details) {
+          // Une liste incomplète serait mise en cache 24 h : l'extension disparaîtrait du filtre par date.
+          if (r.status === 'rejected') throw r.reason;
+          if (r.value.releaseDate) byId.set(r.value.id, { id: r.value.id, releaseDate: r.value.releaseDate, serieId: r.value.serieId });
+        }
+        return sets.flatMap((s) => byId.get(s.id) ?? []);
+      },
+      { ttl: TTL.day },
+    );
+  },
+
+  listIllustrators(lang) {
+    return cached(`tcgdex:illustrators:${lang}`, async () => cleanIllustrators(await fetchJson<string[]>(`${BASE}/${lang}/illustrators`)), {
+      ttl: TTL.week,
+    });
   },
 
   /**

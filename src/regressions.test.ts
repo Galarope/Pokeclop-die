@@ -3,7 +3,7 @@ import { clearCache } from './lib/cache';
 import { applyPatch, shouldReplaceHistory } from './hooks/useUrlState';
 import { resolveTeamName } from './lib/savedTeams';
 import { clampTop } from './components/MusteboueeSwarm';
-import { tcgdex } from './sources/tcgdex';
+import { buildCardsUrl, tcgdex } from './sources/tcgdex';
 import type { CardBrief } from './domain/types';
 
 describe('useUrlState', () => {
@@ -37,6 +37,13 @@ describe('mustébouées', () => {
     expect(clampTop(3000, 100, 800)).toBe(700);
     expect(clampTop(300, 100, 800)).toBe(300);
     expect(clampTop(10, 100, 50)).toBe(0);
+  });
+});
+
+describe('filtre par bloc', () => {
+  it('compare les codes d\'extension exactement (le bloc Base ne doit pas attraper bwp via wp)', () => {
+    const url = decodeURIComponent(buildCardsUrl({ lang: 'fr', setIds: ['base1', 'wp'] }));
+    expect(url).toContain('set.id=eq:base1|wp');
   });
 });
 

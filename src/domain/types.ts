@@ -108,6 +108,13 @@ export interface CardSerie {
   name: string;
 }
 
+/** Date de sortie d'une extension (ISO `AAAA-MM-JJ`) et son bloc. */
+export interface SetRelease {
+  id: string;
+  releaseDate: string;
+  serieId?: string;
+}
+
 export interface CardSetDetail extends CardSet {
   cards: CardBrief[];
 }
@@ -123,7 +130,11 @@ export interface CardQuery {
   /** plusieurs extensions (ex. un bloc entier) ; ignoré si setId est fourni */
   setIds?: string[];
   rarity?: string;
+  /** raretés acceptées (l'une ou l'autre) ; se cumule avec `rarity` */
+  rarities?: string[];
   type?: string;
+  /** types refusés ; les cartes sans type (ex. Dresseurs) sont alors exclues aussi */
+  excludeTypes?: string[];
   stage?: string;
   hpMin?: number;
   hpMax?: number;
