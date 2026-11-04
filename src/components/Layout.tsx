@@ -1,18 +1,26 @@
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import { Mustebouee } from './Mustebouee';
 import { MusteboueeCounter, MusteboueeSwarm } from './MusteboueeSwarm';
 import { CursorPicker } from './CursorPicker';
+import { useTiltEffect } from '../hooks/useTiltEffect';
 
 export function Layout() {
+  const { pathname } = useLocation();
+  useTiltEffect();
   return (
     <>
+      <div className="backdrop" aria-hidden="true">
+        <span className="blob blob-1" />
+        <span className="blob blob-2" />
+        <span className="blob blob-3" />
+      </div>
       <a href="#main" className="skip">
         Aller au contenu
       </a>
       <header className="site-header">
         <div className="container header-inner">
           <Link to="/" className="brand">
-            <span className="ball" aria-hidden="true" /> Pokéclopédie
+            <span className="ball" aria-hidden="true" /> <span className="brand-name">Pokéclopédie</span>
           </Link>
           <nav aria-label="Navigation principale">
             <NavLink to="/" end>Pokédex</NavLink>
@@ -25,7 +33,10 @@ export function Layout() {
         </div>
       </header>
       <main id="main" className="container" tabIndex={-1}>
-        <Outlet />
+        {/* Clé = chemin : l'animation d'entrée rejoue à chaque changement de page (pas pour les paramètres d'URL). */}
+        <div className="page" key={pathname}>
+          <Outlet />
+        </div>
       </main>
       <footer className="site-footer container">
         <p>

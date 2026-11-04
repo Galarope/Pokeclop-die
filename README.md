@@ -2,6 +2,7 @@
 
 Pokédex et encyclopédie du JCC Pokémon (React + TypeScript + Vite).
 Données : [PokéAPI](https://pokeapi.co) (Pokédex) et [TCGdex](https://tcgdex.dev) (cartes, extensions).
+Polices auto-hébergées : [Unbounded](https://github.com/googlefonts/unbounded) et [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans), sous licence SIL OFL 1.1 (textes dans `public/fonts/`).
 **Aucune donnée n'est simulée** : si une source ne fournit pas une valeur, l'UI affiche « — ».
 
 ## Installation
@@ -77,5 +78,5 @@ Les pages Extensions/Cartes utilisent pour l'instant TCGdex directement ; les re
 - Pas d'images pour certaines cartes (TCGdex) : « Image non disponible ».
 - **Images de cartes manquantes** : TCGdex n'a pas d'image pour certaines cartes (Pikachu fr : 69/222). Si la même carte existe en anglais avec une image, elle est affichée et signalée « Image de la version anglaise » (29 récupérées sur 69) ; sinon « Image non disponible ». pokemontcg.io a été testé comme source de repli : seuls 14 des 48 ids manquants en anglais correspondent, le reste exigerait un appariement approximatif, donc non fiable.
 - **Promos Méga-Évolution (MEP)** : toutes les cartes sont listées par TCGdex (en 112, fr 80) mais sans champ `image`. Pour 40 des 112 (en), l'asset existe pourtant à `assets.tcgdex.net/{langue}/{série}/{extension}/{n°}` : le site le retrouve et le vérifie (`CardSource.resolveImage`). Pour les 72 autres, l'image n'existe pas chez TCGdex ; pokemontcg.io n'a pas l'extension MEP. Le français en a 32 de moins (80 cartes) : absentes de la source.
-- **Performances** : tuiles Pokémon mémoïsées avec clic délégué, recherche différée (`useDeferredValue`), `content-visibility` sur les cellules de grille, plus d'effet de flou ni d'ombres animées. Mesuré (dev) : ouverture de la pop-up 43 ms, aucune tâche longue au défilement, 1 tâche de 50 ms en filtrant.
+- **Performances** : tuiles Pokémon mémoïsées avec clic délégué, recherche différée (`useDeferredValue`), `content-visibility` sur les cellules de grille (avec une marge intérieure pour que l'élévation et la lueur au survol ne soient pas coupées). Effets visuels : flou réservé à l'en-tête et aux pop-ups (le fond animé se met en pause quand une pop-up est ouverte), inclinaison 3D des tuiles par un seul écouteur délégué (`useTiltEffect`), animations limitées au survol ou à l'entrée. Mesuré (dev) : ouverture de la pop-up 43 ms, aucune tâche longue au défilement, 1 tâche de 50 ms en filtrant ; après la refonte visuelle (build, headless) : aucune tâche longue en parcourant les 1025 tuiles, pire image 14 ms.
 - **Illustrateurs** : la liste de TCGdex (`/illustrators`) contient quelques valeurs concaténées (ex. `"Big Mama" Tagawa"Big Mama" Tagawa`), telles qu'elles figurent sur les cartes. Elle sert de suggestions sous un champ texte, qui garde la recherche partielle (« Arita » trouve « Mitsuhiro Arita »).

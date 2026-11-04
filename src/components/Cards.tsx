@@ -41,9 +41,11 @@ export function CardTile({ card, onOpen }: { card: CardBrief; onOpen: (c: CardBr
   );
   return (
     <li ref={ref}>
-      <button type="button" className="tile card-tile" onClick={() => onOpen(card)} aria-label={`${card.name}, n° ${card.localId}`}>
+      <button type="button" className="tile card-tile tilt" onClick={() => onOpen(card)} aria-label={`${card.name}, n° ${card.localId}`}>
         {image ? (
-          <img src={`${image}/low.webp`} alt="" loading="lazy" width={245} height={342} />
+          <span className="card-art">
+            <img src={`${image}/low.webp`} alt="" loading="lazy" width={245} height={342} />
+          </span>
         ) : (
           <span className="no-image">Image non disponible</span>
         )}
@@ -79,7 +81,7 @@ export function CardModal({ card, onClose }: { card: CardBrief; onClose: () => v
   return (
     <dialog
       ref={ref}
-      className="modal"
+      className="modal card-modal"
       aria-label={card.name}
       onClose={onClose}
       onKeyDown={(e) => {
@@ -97,11 +99,13 @@ export function CardModal({ card, onClose }: { card: CardBrief; onClose: () => v
         </button>
         {image ? (
           <figure className="card-figure">
-            <img src={imageUrl(image, 'high')} alt={`Carte ${card.name}`} width={420} height={586} />
+            <span className="card-art tilt">
+              <img src={imageUrl(image, 'high')} alt={`Carte ${card.name}`} width={420} height={586} />
+            </span>
             {fallback && <figcaption className="muted small">Image de la version anglaise (aucune image disponible pour cette langue)</figcaption>}
           </figure>
         ) : (
-          <span className="no-image">Image non disponible</span>
+          <span className="no-image card-figure">Image non disponible</span>
         )}
         <div>
           <h2>{card.name}</h2>

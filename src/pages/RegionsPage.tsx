@@ -175,8 +175,11 @@ export function RegionsPage() {
 
   return (
     <>
-      <h1>Régions</h1>
-      <p className="muted">Choisissez une région pour voir ses starters, ses villes, ses arènes et sa Ligue.</p>
+      <header className="page-hero">
+        <p className="eyebrow">Le monde Pokémon</p>
+        <h1>Régions</h1>
+        <p className="lede">Choisissez une région pour voir ses starters, ses villes, ses arènes et sa Ligue.</p>
+      </header>
       <ul className="grid regions-grid">
         {REGIONS.map((r) => (
           <li key={r.id}>
@@ -186,7 +189,10 @@ export function RegionsPage() {
               style={{ ['--region' as string]: r.color }}
               onClick={() => setSelected(r)}
             >
-              <strong>{r.name}</strong>
+              <span className="region-gen" aria-hidden="true">
+                {String(r.generation).padStart(2, '0')}
+              </span>
+              <strong className="region-name">{r.name}</strong>
               <span className="muted small">Génération {r.generation}</span>
               <Team ids={r.starters} lookup={lookup} plain />
             </button>

@@ -131,7 +131,10 @@ export function CardsPage() {
 
   return (
     <>
-      <h1>Cartes du JCC</h1>
+      <header className="page-hero">
+        <p className="eyebrow">Jeu de cartes à collectionner</p>
+        <h1>Cartes du JCC</h1>
+      </header>
       <button type="button" className="btn filters-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
         {filtersOpen ? 'Masquer les filtres' : 'Filtres'}
       </button>
@@ -264,8 +267,8 @@ export function CardsPage() {
       {hasFilter && result.data && !result.loading && !items.length && <Empty>Aucune carte pour ces filtres.</Empty>}
       {hasFilter && items.length > 0 && (
         <>
-          <p className="muted" role="status">
-            {items.length} carte{items.length > 1 ? 's' : ''}
+          <p className="result-count" role="status">
+            <strong>{items.length}</strong> carte{items.length > 1 ? 's' : ''}
           </p>
           <ul className="grid cards-grid" aria-busy={result.loading}>
             {items.map((c) => (

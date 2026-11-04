@@ -28,6 +28,17 @@ export function ErrorBox({ error, onRetry }: { error: Error; onRetry?: () => voi
   );
 }
 
+/** Tuiles fantômes pendant le premier chargement de la liste. */
+export function SkeletonGrid({ count = 18 }: { count?: number }) {
+  return (
+    <ul className="grid skeleton-grid" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <li key={i} className="skeleton" />
+      ))}
+    </ul>
+  );
+}
+
 export function Empty({ children }: { children: React.ReactNode }) {
   return <p className="status muted">{children}</p>;
 }

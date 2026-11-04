@@ -5,7 +5,7 @@ import { TYPES, TYPE_FR, effectiveness, type TypeSlug } from '../data/typeChart'
 import type { PokemonSummary } from '../domain/types';
 import { usePokemonList } from '../hooks/usePokemonList';
 import { Loading, ErrorBox } from '../components/Status';
-import { TypeBadge, pad } from '../components/Pokemon';
+import { TypeBadge, pad, typeVars } from '../components/Pokemon';
 
 const GENERATIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -199,7 +199,7 @@ function TeamGenerator({ pokemon, onSave }: { pokemon: PokemonSummary[]; onSave:
       {team.length > 0 && (
         <ul className="grid team-grid" aria-label="Équipe générée">
           {team.map((p) => (
-            <li key={p.id} className="tile team-card">
+            <li key={p.id} className="tile team-card typed" style={typeVars(p.types)}>
               <span className="muted num">{pad(p.id)}</span>
               <img src={p.imageUrl} alt="" width={120} height={120} />
               <strong>
@@ -366,7 +366,7 @@ function TeamsSection({ pokemon }: { pokemon: PokemonSummary[] }) {
     <>
       <p>
         <button type="button" className="btn primary" onClick={() => setOpen(true)}>
-          Générer une équipe aléatoire
+          🎲 Générer une équipe aléatoire
         </button>
       </p>
       <SavedTeams pokemon={pokemon} api={api} />
@@ -464,7 +464,11 @@ export function TeamPage() {
   const { data, error, loading, reload } = usePokemonList();
   return (
     <>
-      <h1>Équipe et types</h1>
+      <header className="page-hero">
+        <p className="eyebrow">Stratégie</p>
+        <h1>Équipe et types</h1>
+        <p className="lede">Générez une équipe aléatoire selon vos règles, gardez vos préférées et vérifiez ses faiblesses.</p>
+      </header>
       {loading && <Loading label="Chargement du Pokédex…" />}
       {error && <ErrorBox error={error} onRetry={reload} />}
       {data && <TeamsSection pokemon={data} />}
