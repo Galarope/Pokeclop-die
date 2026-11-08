@@ -79,7 +79,7 @@ const LEVEL_BY_RARITY: Record<string, number> = {
   Crown: 6,
 };
 
-/** Raretés connues volontairement sans niveau : elles ne sortent jamais d'un filtre de rareté minimum. */
+/** Raretés connues volontairement sans niveau : exclues des filtres par niveau. */
 export const UNRANKED_RARITIES = ['Promo', 'Sans Rareté', 'None'];
 
 export const rarityLevel = (rarity: string): number | undefined => LEVEL_BY_RARITY[rarity];
@@ -87,3 +87,10 @@ export const rarityLevel = (rarity: string): number | undefined => LEVEL_BY_RARI
 /** Raretés de la liste dont le niveau atteint `level` (les raretés inconnues sont écartées). */
 export const raritiesAtLeast = (level: number, rarities: readonly string[]): string[] =>
   rarities.filter((r) => (rarityLevel(r) ?? 0) >= level);
+
+/** Raretés classées dans la plage demandée, bornes incluses. */
+export const raritiesBetween = (min: number, max: number, rarities: readonly string[]): string[] =>
+  rarities.filter((r) => {
+    const level = rarityLevel(r);
+    return level !== undefined && (!min || level >= min) && (!max || level <= max);
+  });

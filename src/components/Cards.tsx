@@ -31,7 +31,7 @@ function useCardImage(card: CardBrief, enabled: boolean) {
   return data ?? { image: undefined, fallback: false };
 }
 
-export function CardTile({ card, onOpen }: { card: CardBrief; onOpen: (c: CardBrief) => void }) {
+export function CardTile({ card, onOpen, year }: { card: CardBrief; onOpen: (c: CardBrief) => void; year?: string }) {
   // Rareté/illustrateur ne sont que dans le détail de la carte : chargés quand la tuile devient visible (puis cache).
   const [ref, seen] = useInView<HTMLLIElement>();
   const { image, fallback } = useCardImage(card, seen);
@@ -54,6 +54,7 @@ export function CardTile({ card, onOpen }: { card: CardBrief; onOpen: (c: CardBr
         <span className="muted small">
           n° {card.localId}
           {detail?.rarity ? ` · ${detail.rarity}` : ''}
+          {year ? ` · ${year}` : ''}
         </span>
         {detail?.illustrator && <span className="muted small">✎ {detail.illustrator}</span>}
       </button>

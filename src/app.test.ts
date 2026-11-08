@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { CardTile } from './components/Cards';
 import { cached, clearCache } from './lib/cache';
 import { mapLimit, normalize } from './lib/utils';
 import { buildCardsUrl, cleanIllustrators, imageUrl, setIdOf, tcgdex } from './sources/tcgdex';
-import { raritiesAtLeast, rarityLevel, UNRANKED_RARITIES } from './sources/tcgdexRarities';
-import { formatShortDate, NO_MATCH, parseTypeList, resolveSetFilter, serieLabel, serieYears, setIdsReleasedSince } from './lib/cardFilters';
+import { raritiesAtLeast, raritiesBetween, rarityLevel, UNRANKED_RARITIES } from './sources/tcgdexRarities';
+import { releaseYear, NO_MATCH, parseTypeList, resolveSetFilter, serieLabel, serieYears, setIdsReleasedBetween } from './lib/cardFilters';
 import type { SetRelease } from './domain/types';
 import { mapSpecies, toEvolutionTree, describeEvolution } from './api/pokeapi';
 
@@ -69,14 +72,25 @@ describe('dates des extensions', () => {
     expect(serieLabel('Inconnu', serieYears('xx', releases))).toBe('Inconnu');
   });
 
-  it('formate une date ISO en JJ/MM/AAAA sans décalage de fuseau', () => {
-    expect(formatShortDate('2019-11-01')).toBe('01/11/2019');
-    expect(formatShortDate(undefined)).toBeUndefined();
+  it('extrait uniquement l’année sans décalage de fuseau', () => {
+    expect(releaseYear('2019-11-01')).toBe('2019');
+    expect(releaseYear(undefined)).toBeUndefined();
+    expect(releaseYear('inconnu')).toBeUndefined();
   });
 
-  it('garde les extensions sorties à la date choisie ou après', () => {
-    expect(setIdsReleasedSince('2019-11-01', releases)).toEqual(['sm12', 'swsh1', 'sv01']);
-    expect(setIdsReleasedSince('2030-01-01', releases)).toEqual([]);
+  it('affiche l’année sur la tuile de carte avant ouverture', () => {
+    const card = { uid: 'tcgdex:fr:sm1-1', source: 'tcgdex', lang: 'fr', id: 'sm1-1', localId: '1', name: 'Test', setId: 'sm1' };
+    const html = renderToStaticMarkup(createElement(CardTile, { card, onOpen: () => {}, year: '2017' }));
+    expect(html).toContain('n° 1 · 2017');
+  });
+
+  it('filtre les années de sortie avec des bornes inclusives', () => {
+    expect(setIdsReleasedBetween('2019', '', releases)).toEqual(['sm12', 'swsh1', 'sv01']);
+    expect(setIdsReleasedBetween('', '2019', releases)).toEqual(['sm1', 'sm12']);
+    expect(setIdsReleasedBetween('2019', '2020', releases)).toEqual(['sm12', 'swsh1']);
+    expect(setIdsReleasedBetween('2019', '2019', releases)).toEqual(['sm12']);
+    expect(setIdsReleasedBetween('2020', '2019', releases)).toEqual([]);
+    expect(setIdsReleasedBetween('2030', '', releases)).toEqual([]);
   });
 
   it('combine extension, bloc et date', () => {
@@ -149,6 +163,15 @@ describe('rareté minimum', () => {
     expect(atLeastRare).not.toContain('Peu Commune');
     expect(atLeastRare).not.toContain('Promo');
     expect(raritiesAtLeast(2, ['Inconnue'])).toEqual([]);
+  });
+
+  it('combine les niveaux minimum et maximum, bornes incluses', () => {
+    const sample = ['Common', 'Uncommon', 'Rare', 'Holo Rare', 'Ultra Rare', 'Crown', 'Promo', 'Unknown'];
+    expect(raritiesBetween(0, 3, sample)).toEqual(['Common', 'Uncommon', 'Rare']);
+    expect(raritiesBetween(3, 5, sample)).toEqual(['Rare', 'Holo Rare', 'Ultra Rare']);
+    expect(raritiesBetween(5, 0, sample)).toEqual(['Ultra Rare', 'Crown']);
+    expect(raritiesBetween(4, 3, sample)).toEqual([]);
+    expect(raritiesBetween(2, 2, sample)).toEqual(['Uncommon']);
   });
 });
 

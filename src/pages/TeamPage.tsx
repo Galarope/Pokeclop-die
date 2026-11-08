@@ -6,6 +6,8 @@ import type { PokemonSummary } from '../domain/types';
 import { usePokemonList } from '../hooks/usePokemonList';
 import { Loading, ErrorBox } from '../components/Status';
 import { TypeBadge, pad, typeVars } from '../components/Pokemon';
+import { TeamRecommendations } from '../components/TeamRecommendations';
+import { exportBackup, importBackup, parseBackup } from '../lib/backup';
 
 const GENERATIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -219,6 +221,7 @@ function TeamGenerator({ pokemon, onSave }: { pokemon: PokemonSummary[]; onSave:
         </ul>
       )}
       {team.length > 0 && <TeamWeaknesses team={team} />}
+      {team.length > 0 && <TeamRecommendations team={team} pokemon={pokemon} />}
       {team.length > 0 && (
         <form
           className="team-actions"
@@ -279,18 +282,31 @@ function SavedTeams({ pokemon, api }: { pokemon: PokemonSummary[]; api: ReturnTy
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
 
   const doExport = () => {
-    const url = URL.createObjectURL(new Blob([api.exportJson()], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pokeclopedie-equipes-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const url = URL.createObjectURL(new Blob([exportBackup(api.teams)], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pokeclopedie-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setMessage({ ok: false, text: e instanceof Error ? e.message : 'Export impossible.' });
+    }
   };
 
   const doImport = async (file: File) => {
     try {
-      const n = api.importJson(await file.text());
-      setMessage({ ok: true, text: n ? `${n} équipe${n > 1 ? 's' : ''} importée${n > 1 ? 's' : ''}.` : 'Aucune nouvelle équipe dans ce fichier.' });
+      const text = await file.text();
+      const raw: unknown = JSON.parse(text);
+      if (raw && typeof raw === 'object' && 'format' in raw && raw.format === 'pokeclopedie-teams') {
+        const n = api.importJson(text);
+        setMessage({ ok: true, text: `${n} équipe(s) importée(s).` });
+      } else {
+        const backup = parseBackup(text);
+        const merged = importBackup(backup, api.teams);
+        api.reload();
+        setMessage({ ok: true, text: `Sauvegarde fusionnée : ${merged.teams} nouvelle(s) équipe(s) et captures mises à jour.` });
+      }
     } catch (e) {
       setMessage({ ok: false, text: e instanceof Error ? e.message : 'Fichier illisible.' });
     }
@@ -302,7 +318,7 @@ function SavedTeams({ pokemon, api }: { pokemon: PokemonSummary[]; api: ReturnTy
       <div className="saved-head">
         <h2 id="saved-title">Mes équipes ({api.teams.length})</h2>
         <div className="team-actions">
-          <button type="button" className="btn" onClick={doExport} disabled={!api.teams.length}>
+          <button type="button" className="btn" onClick={doExport}>
             ⬇ Exporter les données
           </button>
           <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
@@ -310,6 +326,7 @@ function SavedTeams({ pokemon, api }: { pokemon: PokemonSummary[]; api: ReturnTy
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
         </div>
+        <p className="muted small">Sauvegarde des équipes et captures. L’import fusionne les équipes par identifiant et conserve le plus grand nombre de captures par espèce.</p>
       </div>
       {message && (
         <p className="status" role={message.ok ? 'status' : 'alert'}>
@@ -352,6 +369,7 @@ function SavedTeams({ pokemon, api }: { pokemon: PokemonSummary[]; api: ReturnTy
                 );
               })}
             </ul>
+            <TeamRecommendations team={t.members.flatMap((id) => byId.get(id) ? [byId.get(id)!] : [])} pokemon={pokemon} />
           </li>
         ))}
       </ul>
@@ -365,7 +383,7 @@ function TeamsSection({ pokemon }: { pokemon: PokemonSummary[] }) {
   return (
     <>
       <p>
-        <button type="button" className="btn primary" onClick={() => setOpen(true)}>
+        <button type="button" className="btn primary" disabled={!pokemon.length} onClick={() => setOpen(true)}>
           🎲 Générer une équipe aléatoire
         </button>
       </p>
@@ -471,7 +489,7 @@ export function TeamPage() {
       </header>
       {loading && <Loading label="Chargement du Pokédex…" />}
       {error && <ErrorBox error={error} onRetry={reload} />}
-      {data && <TeamsSection pokemon={data} />}
+      <TeamsSection pokemon={data ?? []} />
       <TypeChart />
     </>
   );

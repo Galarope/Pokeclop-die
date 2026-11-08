@@ -21,12 +21,17 @@ try {
 }
 
 export const nextSpawnDelay = (random = Math.random()) => MIN_DELAY_MS + random * (MAX_DELAY_MS - MIN_DELAY_MS);
+export const randomLeft = (random = Math.random()) => random * 100;
 const SHINY_ODDS = 1 / 128;
 const POP_MS = 900;
 const CAPTURE_MS = 3300;
 const listeners = new Set<() => void>();
 
 export type CatchRarity = 'commun' | 'peu-commun' | 'rare' | 'épique' | 'légendaire' | 'fabuleux';
+
+export function isCaught(shiny: boolean, rarity: CatchRarity, random = Math.random()): boolean {
+  return shiny || rarity === 'légendaire' || rarity === 'fabuleux' || random < 0.8;
+}
 
 const RARITIES: { id: CatchRarity; label: string }[] = [
   { id: 'commun', label: 'Commun' },
@@ -95,6 +100,7 @@ interface Capture {
   pokemon: PokemonSummary;
   rarity: CatchRarity;
   shiny: boolean;
+  caught: boolean;
   phase: 'animation' | 'result';
 }
 
@@ -292,14 +298,6 @@ export function MusteboueeCounter() {
   );
 }
 
-/** Position horizontale : 80 % des apparitions dans les marges latérales (0-12 % ou 88-100 %). */
-function randomLeft(): number {
-  const r = Math.random();
-  if (r < 0.4) return Math.random() * 12;
-  if (r < 0.8) return 88 + Math.random() * 12;
-  return 12 + Math.random() * 76;
-}
-
 function loadItems(): Spawn[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(ITEMS_KEY) ?? '[]');
@@ -415,21 +413,22 @@ export function MusteboueeSwarm() {
             className={`mustebouee-spawn rarity-${rarity}${item.shiny ? ' is-shiny' : ''}`}
             aria-label={`Capturer ${name}, rareté ${rarityLabel(rarity)}${item.shiny ? ', shiny' : ''}`}
             disabled={Boolean(capture)}
-            style={{ left: `min(${item.left}%, calc(100% - ${item.size}px))`, top: clampTop(item.top, item.size, pageHeight), width: item.size, height: item.size }}
+            style={{ left: `calc(${item.left}% - ${item.size * item.left / 100}px)`, top: clampTop(item.top, item.size, pageHeight), width: item.size, height: item.size }}
             onClick={(event) => {
               setItems((current) => current.filter((entry) => entry.id !== item.id));
+              const caught = isCaught(item.shiny, rarity);
               const rect = event.currentTarget.getBoundingClientRect();
               const pop: CatchPop = {
                 id: item.id,
                 x: rect.left + rect.width / 2,
                 y: rect.top + rect.height / 2,
-                text: item.shiny ? '✨' : '+1',
+                text: caught ? (item.shiny ? '✨' : '+1') : '✕',
                 shiny: item.shiny,
               };
               setPops((current) => [...current, pop]);
               setTimeout(() => setPops((current) => current.filter((entry) => entry.id !== pop.id)), POP_MS);
-              setCapture({ id: item.id, pokemon: species, rarity, shiny: item.shiny, phase: 'animation' });
-              recordCatch(species.id, item.shiny);
+              setCapture({ id: item.id, pokemon: species, rarity, shiny: item.shiny, caught, phase: 'animation' });
+              if (caught) recordCatch(species.id, item.shiny);
             }}
           >
             <img src={item.shiny ? shinyArtwork(species.imageUrl, species.id) : species.imageUrl} alt="" draggable={false} />
@@ -473,7 +472,7 @@ export function MusteboueeSwarm() {
               </>
             ) : (
               <>
-                <h2 id="capture-title">{capture.shiny ? '✨ Incroyable, un shiny ! ✨' : `${capture.pokemon.nameFr ?? capture.pokemon.nameEn ?? capture.pokemon.slug} capturé !`}</h2>
+                <h2 id="capture-title">{!capture.caught ? 'Le Pokémon s’est échappé !' : capture.shiny ? '✨ Incroyable, un shiny ! ✨' : `${capture.pokemon.nameFr ?? capture.pokemon.nameEn ?? capture.pokemon.slug} capturé !`}</h2>
                 <p className="muted">{capture.pokemon.nameFr ?? capture.pokemon.nameEn ?? capture.pokemon.slug} · {rarityLabel(capture.rarity)}{capture.shiny ? ' · Shiny' : ''}</p>
                 <button type="button" className="btn primary" onClick={() => dialogRef.current?.close()}>Continuer</button>
               </>

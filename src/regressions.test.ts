@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCache } from './lib/cache';
 import { applyPatch, shouldReplaceHistory } from './hooks/useUrlState';
 import { resolveTeamName } from './lib/savedTeams';
-import { clampTop, MAX_DELAY_MS, MIN_DELAY_MS, nextSpawnDelay, parseCaughtDex, pickSpecies, rollRarity, speciesRarity, viewCaught } from './components/MusteboueeSwarm';
+import { clampTop, isCaught, MAX_DELAY_MS, MIN_DELAY_MS, nextSpawnDelay, parseCaughtDex, pickSpecies, randomLeft, rollRarity, speciesRarity, viewCaught } from './components/MusteboueeSwarm';
 import { buildCardsUrl, MAX_DEX_NUMBER, tcgdex } from './sources/tcgdex';
 import type { CardBrief } from './domain/types';
 
@@ -33,6 +33,19 @@ describe('noms d\'équipe', () => {
 });
 
 describe('mustébouées', () => {
+  it('capture 80 % des Pokémon ordinaires et garantit shinies, légendaires et fabuleux', () => {
+    for (const rarity of ['commun', 'peu-commun', 'rare', 'épique'] as const) {
+      expect(Array.from({ length: 100 }, (_, i) => isCaught(false, rarity, i / 100)).filter(Boolean)).toHaveLength(80);
+      expect(isCaught(true, rarity, 0.999)).toBe(true);
+    }
+    expect(isCaught(false, 'légendaire', 0.999)).toBe(true);
+    expect(isCaught(false, 'fabuleux', 0.999)).toBe(true);
+  });
+
+  it('répartit les apparitions horizontalement sur toute la page', () => {
+    expect([0, 0.12, 0.5, 0.88, 1].map(randomLeft)).toEqual([0, 12, 50, 88, 100]);
+  });
+
   it('reste dans la page quand elle est plus courte que la position stockée', () => {
     expect(clampTop(3000, 100, 800)).toBe(700);
     expect(clampTop(300, 100, 800)).toBe(300);

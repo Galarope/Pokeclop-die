@@ -24,11 +24,13 @@ npm run coverage:api # mesure la couverture réelle des API (réseau requis)
 | Page | Route | Contenu |
 |---|---|---|
 | Pokédex (accueil) | `/` | 1025 espèces sur une seule page, filtres génération/type/nom, filtres dans la page |
+| Comparaison | `/comparer` | comparaison de deux espèces : types, faiblesses et statistiques de base |
 | Fiche Pokémon | pop-up (`/?p=25`) | noms FR/EN, n°, types, taille, poids, stats, génération (+ région), formes (normal et shiny), évolutions, **cartes par langue → extension → carte** |
 | Extension | `/sets/:lang/:id` | page d'une extension (accessible depuis la recherche globale ; plus d'onglet « Extensions ») |
 | Extension | `/sets/:lang/:id` | détail, filtre de rareté, liste complète des cartes, fiche carte (pop-up) |
-| Cartes | `/cards` | filtres langue, Pokémon, bloc (avec ses années) et extension (avec sa date), sorties à partir d'une date, rareté exacte ou minimum, type (un à inclure, plusieurs à exclure), stade, PV min/max, illustrateur (avec suggestions) ; tri par illustrateur (au moins un filtre requis ; exclure des types ne suffit pas seul) |
-| Toutes les pages | — | mini-jeu de capture avec des Pokémon de toutes les générations, niveaux de rareté, shinies rares et Pokédex des captures sauvegardé localement |
+| Cartes | `/cards` | filtres langue, Pokémon, bloc et extension, années de sortie min/max incluses, rareté exacte ou niveaux min/max inclus, type (un à inclure, plusieurs à exclure), stade, PV et illustrateur ; filtres actifs amovibles et tri par illustrateur, année, rareté ou numéro. Le tri par rareté charge le détail de chaque carte ; les raretés non classées sont placées en dernier. |
+| Équipe et types | `/equipe` | équipes sauvegardées, suggestions fondées sur la couverture et les résistances de type, export/import des équipes et captures. L'import fusionne les équipes par identifiant et conserve pour chaque espèce le plus grand nombre de captures ; les anciens exports d'équipes restent compatibles. |
+| Toutes les pages | — | mini-jeu de capture avec 80 % de chances de capture (100 % pour les shinies, légendaires et fabuleux), niveaux de rareté et Pokédex des captures sauvegardé localement |
 
 ## Architecture
 

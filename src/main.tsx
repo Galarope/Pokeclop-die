@@ -8,6 +8,7 @@ import { PokedexPage } from './pages/PokedexPage';
 import { RegionsPage } from './pages/RegionsPage';
 import { TeamPage } from './pages/TeamPage';
 import { SetPage } from './pages/SetPage';
+import { ComparePage } from './pages/ComparePage';
 import './styles/global.css';
 
 function LegacyPokemonRedirect() {
@@ -26,6 +27,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="sets" element={<Navigate to="/" replace />} />
             <Route path="sets/:lang/:id" element={<SetPage />} />
             <Route path="cards" element={<CardsPage />} />
+            <Route path="comparer" element={<ComparePage />} />
             <Route path="regions" element={<RegionsPage />} />
             <Route path="equipe" element={<TeamPage />} />
             <Route

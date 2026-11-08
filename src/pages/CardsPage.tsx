@@ -6,11 +6,13 @@ import type { CardBrief } from '../domain/types';
 import { useAsync } from '../hooks/useAsync';
 import { usePokemonList } from '../hooks/usePokemonList';
 import { useUrlState } from '../hooks/useUrlState';
-import { formatShortDate, NO_MATCH, parseTypeList, resolveSetFilter, serieLabel, serieYears, setIdsReleasedSince } from '../lib/cardFilters';
+import { NO_MATCH, parseTypeList, releaseYear, resolveSetFilter, serieLabel, serieYears, setIdsReleasedBetween } from '../lib/cardFilters';
 import { tcgdex } from '../sources/tcgdex';
-import { RARITY_LEVELS, raritiesAtLeast } from '../sources/tcgdexRarities';
+import { RARITY_LEVELS, raritiesBetween } from '../sources/tcgdexRarities';
 import { LANGUAGE_LABELS } from '../sources/types';
 import { cardSources } from '../sources';
+import { sortCards } from '../lib/cardSort';
+import { mapLimit } from '../lib/utils';
 
 const languageOptions = () =>
   [...new Set(cardSources.flatMap((s) => [...s.languages]))].map((l) => ({ value: l, label: LANGUAGE_LABELS[l] ?? l }));
@@ -19,9 +21,13 @@ const rarityMinOptions = RARITY_LEVELS.map((label, i) => ({
   value: String(i + 1),
   label: i + 1 === RARITY_LEVELS.length ? label : `${label} ou plus`,
 }));
+const rarityMaxOptions = RARITY_LEVELS.map((label, i) => ({
+  value: String(i + 1),
+  label: i === 0 ? label : `${label} ou moins`,
+}));
 
 const KEYS = [
-  'lang', 'dex', 'dexMin', 'dexMax', 'serie', 'set', 'from', 'rarity', 'rarityMin', 'type', 'notType', 'stage', 'hpMin', 'hpMax', 'illustrator', 'sort',
+  'lang', 'dex', 'dexMin', 'dexMax', 'serie', 'set', 'from', 'to', 'rarity', 'rarityMin', 'rarityMax', 'type', 'notType', 'stage', 'hpMin', 'hpMax', 'illustrator', 'sort',
 ] as const;
 
 function useDebounced<T>(value: T, ms = 400): T {
@@ -78,32 +84,38 @@ export function CardsPage() {
   const hpMax = useDebounced(values.hpMax);
   const dexMin = useDebounced(values.dexMin);
   const dexMax = useDebounced(values.dexMax);
-  const from = useDebounced(values.from);
+  // Les anciennes URL contiennent une date ISO complète : conserver leur année.
+  const fromInput = values.from.includes('-') ? values.from.slice(0, 4) : values.from;
+  const toInput = values.to.includes('-') ? values.to.slice(0, 4) : values.to;
+  const from = useDebounced(fromInput);
+  const to = useDebounced(toInput);
+  const invalidYear = [fromInput, toInput].some((year) => year !== '' && !/^\d{4}$/.test(year));
   const rarityMin = Number(values.rarityMin) || 0;
+  const rarityMax = Number(values.rarityMax) || 0;
   const hasDexRange = !values.dex && !!(dexMin || dexMax);
   // Exclure des types ne suffit pas à lui seul : cela chargerait presque toutes les cartes de la langue.
   const hasFilter = !!(
-    values.dex || hasDexRange || values.serie || values.set || from || values.rarity || rarityMin || values.type || values.stage || illustrator || hpMin || hpMax
+    values.dex || hasDexRange || values.serie || values.set || fromInput || toInput || values.rarity || rarityMin || rarityMax || values.type || values.stage || illustrator || hpMin || hpMax
   );
-  // Sans ces listes, le filtre date ou rareté minimum serait ignoré en silence : on attend (ou on affiche l'erreur).
+  // Sans ces listes, les filtres par année ou niveau de rareté seraient ignorés en silence.
   // `loading` compte aussi : au changement de langue, `data` garde un temps la liste de l'autre langue.
-  const neededLists = [...(from ? [releases] : []), ...(rarityMin ? [rarities] : [])];
+  const neededLists = [...(fromInput || toInput ? [releases] : []), ...(rarityMin || rarityMax ? [rarities] : [])];
   const listError = neededLists.find((l) => l.error);
-  const waiting = serieLoading || neededLists.some((l) => l.loading || !l.data);
+  const waiting = serieLoading || from !== fromInput || to !== toInput || neededLists.some((l) => l.loading || !l.data);
   // Mémoïsés : ce sont des dépendances de la recherche, qui ne doit pas repartir quand une liste inutilisée arrive.
-  const setsSince = useMemo(() => (from && releases.data ? setIdsReleasedSince(from, releases.data) : undefined), [from, releases.data]);
-  const minRarities = useMemo(() => (rarityMin && rarities.data ? raritiesAtLeast(rarityMin, rarities.data) : undefined), [rarityMin, rarities.data]);
+  const setsInYears = useMemo(() => ((from || to) && releases.data ? setIdsReleasedBetween(from, to, releases.data) : undefined), [from, to, releases.data]);
+  const rangeRarities = useMemo(() => ((rarityMin || rarityMax) && rarities.data ? raritiesBetween(rarityMin, rarityMax, rarities.data) : undefined), [rarityMin, rarityMax, rarities.data]);
   const result = useAsync(
     (signal) => {
-      if (!hasFilter || waiting) return Promise.resolve(undefined);
+      if (!hasFilter || waiting || invalidYear) return Promise.resolve(undefined);
       return tcgdex.searchCards({
         lang,
         dexId: values.dex ? Number(values.dex) : undefined,
         dexMin: hasDexRange ? toNumber(dexMin) : undefined,
         dexMax: hasDexRange ? toNumber(dexMax) : undefined,
-        ...resolveSetFilter(values.set, values.serie ? (serieSets.data ?? []) : undefined, setsSince),
+        ...resolveSetFilter(values.set, values.serie ? (serieSets.data ?? []) : undefined, setsInYears),
         rarity: values.rarity || undefined,
-        rarities: minRarities && (minRarities.length ? minRarities : [NO_MATCH]),
+        rarities: rangeRarities && (rangeRarities.length ? rangeRarities : [NO_MATCH]),
         type: values.type || undefined,
         excludeTypes: excludedTypes.filter((t) => t !== values.type),
         stage: values.stage || undefined,
@@ -114,20 +126,60 @@ export function CardsPage() {
       }, signal);
     },
     [
-      lang, hasFilter, waiting, serieSets.data, setsSince, minRarities, hasDexRange, dexMin, dexMax, values.dex, values.serie, values.set,
+      lang, hasFilter, waiting, invalidYear, serieSets.data, setsInYears, rangeRarities, hasDexRange, dexMin, dexMax, values.dex, values.serie, values.set,
       values.rarity, values.type, values.notType, values.stage, hpMin, hpMax, illustrator, values.sort,
     ],
   );
 
-  const setsSinceFrom = values.from && releases.data ? setIdsReleasedSince(values.from, releases.data) : undefined;
-  const onFromChange = (v: string) => {
-    const keepSet = !values.set || !v || !releases.data || setIdsReleasedSince(v, releases.data).includes(values.set);
-    set(keepSet ? { from: v } : { from: v, set: '' });
+  const setsInInputYears = !invalidYear && (fromInput || toInput) && releases.data ? setIdsReleasedBetween(fromInput, toInput, releases.data) : undefined;
+  const onYearChange = (key: 'from' | 'to', v: string) => {
+    const newFrom = key === 'from' ? v : fromInput;
+    const newTo = key === 'to' ? v : toInput;
+    const valid = [newFrom, newTo].every((year) => year === '' || /^\d{4}$/.test(year));
+    const keepSet = !values.set || !valid || !releases.data || setIdsReleasedBetween(newFrom, newTo, releases.data).includes(values.set);
+    set(keepSet ? { [key]: v } : { [key]: v, set: '' });
   };
   const toggleExcludedType = (t: string) =>
     set({ notType: (excludedTypes.includes(t) ? excludedTypes.filter((x) => x !== t) : [...excludedTypes, t]).join(',') });
 
-  const items = result.data?.items ?? [];
+  const rawItems = result.data?.items;
+  const rarityDetails = useAsync(async (signal) => {
+    if (values.sort !== 'rarity' || !rawItems) return undefined;
+    const results = await mapLimit(rawItems, 6, async (card) => {
+      if (signal.aborted) throw new DOMException('Tri abandonné', 'AbortError');
+      return tcgdex.getCard(card.lang, card.id);
+    });
+    const details = results.map((entry) => {
+      if (entry.status === 'rejected') throw entry.reason;
+      return entry.value;
+    });
+    return { cards: rawItems, details: new Map(details.map((detail) => [detail.uid, detail])) };
+  }, [values.sort, rawItems]);
+  const sortWaiting = values.sort === 'rarity' && !!rawItems && (rarityDetails.loading || rarityDetails.data?.cards !== rawItems);
+  const yearWaiting = values.sort === 'year' && (releases.loading || !releases.data);
+  const items = useMemo(() => {
+    if (!rawItems) return [];
+    if (values.sort === 'year' || values.sort === 'number' || values.sort === 'rarity') {
+      return sortCards(rawItems, values.sort, releaseDates, rarityDetails.data?.details);
+    }
+    return rawItems;
+  }, [rawItems, values.sort, releaseDates, rarityDetails.data]);
+
+  const chips: { key: typeof KEYS[number]; label: string; value: string }[] = [
+    { key: 'lang', label: 'Langue', value: values.lang ? (LANGUAGE_LABELS[lang] ?? lang) : '' },
+    { key: 'dex', label: 'Pokémon', value: dexPokemon?.nameFr ?? dexPokemon?.nameEn ?? values.dex },
+    { key: 'dexMin', label: 'N° min.', value: values.dexMin }, { key: 'dexMax', label: 'N° max.', value: values.dexMax },
+    { key: 'serie', label: 'Bloc', value: series.data?.find((s) => s.id === values.serie)?.name ?? values.serie },
+    { key: 'set', label: 'Extension', value: sets.data?.find((s) => s.id === values.set)?.name ?? values.set },
+    { key: 'from', label: 'Année min.', value: fromInput }, { key: 'to', label: 'Année max.', value: toInput },
+    { key: 'rarity', label: 'Rareté', value: values.rarity },
+    { key: 'rarityMin', label: 'Rareté min.', value: rarityMinOptions[rarityMin - 1]?.label ?? values.rarityMin },
+    { key: 'rarityMax', label: 'Rareté max.', value: rarityMaxOptions[rarityMax - 1]?.label ?? values.rarityMax },
+    { key: 'type', label: 'Type', value: values.type },
+    { key: 'stage', label: 'Stade', value: values.stage },
+    { key: 'hpMin', label: 'PV min.', value: values.hpMin }, { key: 'hpMax', label: 'PV max.', value: values.hpMax },
+    { key: 'illustrator', label: 'Illustrateur', value: values.illustrator },
+  ];
 
   return (
     <>
@@ -176,16 +228,17 @@ export function CardsPage() {
           onChange={(v) => set({ set: v })}
           options={(sets.data ?? [])
             .filter((s) => !values.serie || !serieSets.data || serieSets.data.includes(s.id))
-            .filter((s) => !setsSinceFrom || setsSinceFrom.includes(s.id))
+            .filter((s) => !setsInInputYears || setsInInputYears.includes(s.id))
             .map((s) => {
-              const date = formatShortDate(releaseDates.get(s.id));
-              return { value: s.id, label: date ? `${s.name} (${date})` : s.name };
+              const year = releaseYear(releaseDates.get(s.id));
+              return { value: s.id, label: year ? `${s.name} (${year})` : s.name };
             })}
           disabled={!sets.data}
         />
-        <TextField label="Sorties à partir du" type="date" value={values.from} onChange={onFromChange}>
-          <small className="muted">Date de sortie de l'extension de la carte.</small>
+        <TextField label="Année de sortie minimum" type="number" value={fromInput} onChange={(v) => onYearChange('from', v)} placeholder="ex. 2015">
+          <small className="muted">Années de sortie de l'extension, bornes incluses.</small>
         </TextField>
+        <TextField label="Année de sortie maximum" type="number" value={toInput} onChange={(v) => onYearChange('to', v)} placeholder="ex. 2020" />
         <SelectField
           label="Rareté"
           value={values.rarity}
@@ -198,6 +251,13 @@ export function CardsPage() {
           value={values.rarityMin}
           onChange={(v) => set({ rarityMin: v })}
           options={rarityMinOptions}
+          disabled={!rarities.data}
+        />
+        <SelectField
+          label="Rareté maximum"
+          value={values.rarityMax}
+          onChange={(v) => set({ rarityMax: v })}
+          options={rarityMaxOptions}
           disabled={!rarities.data}
         />
         <SelectField
@@ -240,7 +300,12 @@ export function CardsPage() {
           label="Tri"
           value={values.sort}
           onChange={(v) => set({ sort: v })}
-          options={[{ value: 'illustrator', label: 'Illustrateur (A→Z)' }]}
+          options={[
+            { value: 'illustrator', label: 'Illustrateur (A→Z)' },
+            { value: 'year', label: 'Année (croissante)' },
+            { value: 'rarity', label: 'Rareté (croissante)' },
+            { value: 'number', label: 'Numéro (croissant)' },
+          ]}
           placeholder="Par défaut"
         />
         <button
@@ -248,7 +313,7 @@ export function CardsPage() {
           className="btn"
           onClick={() =>
             set({
-              dex: '', dexMin: '', dexMax: '', serie: '', set: '', from: '', rarity: '', rarityMin: '', type: '', notType: '', stage: '', hpMin: '', hpMax: '',
+              dex: '', dexMin: '', dexMax: '', serie: '', set: '', from: '', to: '', rarity: '', rarityMin: '', rarityMax: '', type: '', notType: '', stage: '', hpMin: '', hpMax: '',
               illustrator: '', sort: '',
             })
           }
@@ -260,19 +325,35 @@ export function CardsPage() {
       <p className="muted small">
         Tous les résultats sont affichés sur une seule page. Choisissez au moins un filtre : charger toutes les cartes d'une langue en une fois serait trop lourd.
       </p>
+      {(chips.some((chip) => chip.value) || excludedTypes.length > 0) && (
+        <ul className="chips" aria-label="Filtres actifs">
+          {chips.filter((chip) => chip.value).map((chip) => (
+            <li key={chip.key}>{chip.label} : {chip.value}{' '}
+              <button type="button" className="chip-x" aria-label={`Retirer le filtre ${chip.label}`} onClick={() => set({ [chip.key]: '', ...(chip.key === 'serie' ? { set: '' } : {}), ...(chip.key === 'lang' ? { serie: '', set: '', rarity: '', type: '', notType: '', stage: '' } : {}) })}>✕</button>
+            </li>
+          ))}
+          {excludedTypes.map((type) => <li key={type}>Sans {type}{' '}
+            <button type="button" className="chip-x" aria-label={`Ne plus exclure ${type}`} onClick={() => toggleExcludedType(type)}>✕</button>
+          </li>)}
+        </ul>
+      )}
       {!hasFilter && <Empty>Sélectionnez un filtre (Pokémon, extension, date, rareté, type, stade, PV ou illustrateur) pour afficher des cartes.</Empty>}
-      {hasFilter && (result.loading || (waiting && !listError)) && <Loading label="Recherche des cartes…" />}
+      {invalidYear && <p className="status error" role="alert">Saisissez une année sur quatre chiffres.</p>}
+      {hasFilter && !invalidYear && (result.loading || (waiting && !listError)) && <Loading label="Recherche des cartes…" />}
       {listError?.error && <ErrorBox error={listError.error} onRetry={listError.reload} />}
+      {!listError && releases.error && <ErrorBox error={releases.error} onRetry={releases.reload} />}
       {result.error && <ErrorBox error={result.error} onRetry={result.reload} />}
-      {hasFilter && result.data && !result.loading && !items.length && <Empty>Aucune carte pour ces filtres.</Empty>}
-      {hasFilter && items.length > 0 && (
+      {rarityDetails.error && values.sort === 'rarity' && <ErrorBox error={rarityDetails.error} onRetry={rarityDetails.reload} />}
+      {hasFilter && !invalidYear && !waiting && ((sortWaiting && !rarityDetails.error) || (yearWaiting && !releases.error)) && <Loading label="Tri des cartes…" />}
+      {hasFilter && !invalidYear && !waiting && result.data && !result.loading && !items.length && <Empty>Aucune carte pour ces filtres.</Empty>}
+      {hasFilter && !invalidYear && !waiting && !sortWaiting && !yearWaiting && items.length > 0 && (
         <>
           <p className="result-count" role="status">
             <strong>{items.length}</strong> carte{items.length > 1 ? 's' : ''}
           </p>
           <ul className="grid cards-grid" aria-busy={result.loading}>
             {items.map((c) => (
-              <CardTile key={c.uid} card={c} onOpen={setSelected} />
+              <CardTile key={c.uid} card={c} onOpen={setSelected} year={releaseYear(releaseDates.get(c.setId))} />
             ))}
           </ul>
         </>
@@ -283,4 +364,3 @@ export function CardsPage() {
     </>
   );
 }
-

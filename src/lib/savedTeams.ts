@@ -77,5 +77,7 @@ export function useSavedTeams() {
     [teams],
   );
 
-  return { teams, save, remove, rename, exportJson, importJson };
+  const reload = useCallback(() => setTeams(load()), []);
+
+  return { teams, save, remove, rename, exportJson, importJson, reload };
 }

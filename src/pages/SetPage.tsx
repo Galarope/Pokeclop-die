@@ -7,6 +7,7 @@ import type { CardBrief } from '../domain/types';
 import { useAsync } from '../hooks/useAsync';
 import { useUrlState } from '../hooks/useUrlState';
 import { formatDate } from '../lib/utils';
+import { releaseYear } from '../lib/cardFilters';
 import { tcgdex } from '../sources/tcgdex';
 import { LANGUAGE_LABELS } from '../sources/types';
 
@@ -77,7 +78,7 @@ export function SetPage() {
       {slice.length ? (
         <ul className="grid cards-grid">
           {slice.map((c) => (
-            <CardTile key={c.uid} card={c} onOpen={setSelected} />
+            <CardTile key={c.uid} card={c} onOpen={setSelected} year={releaseYear(s.releaseDate)} />
           ))}
         </ul>
       ) : (

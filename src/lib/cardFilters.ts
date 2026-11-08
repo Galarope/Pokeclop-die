@@ -3,11 +3,8 @@ import type { SetRelease } from '../domain/types';
 /** Valeur qu'aucune carte n'a : une liste d'extensions ou de raretés vide doit donner zéro résultat, pas tout. */
 export const NO_MATCH = '-';
 
-/** `AAAA-MM-JJ` → `JJ/MM/AAAA`, sans passer par `Date` (évite le décalage d'un jour selon le fuseau). */
-export function formatShortDate(iso?: string): string | undefined {
-  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-}
+/** Année d'une date ISO, sans conversion de fuseau horaire. */
+export const releaseYear = (iso?: string): string | undefined => iso?.match(/^\d{4}/)?.[0];
 
 /** Années de sortie de la première et de la dernière extension d'un bloc. */
 export function serieYears(serieId: string, releases: readonly SetRelease[]): { from: number; to: number } | undefined {
@@ -20,9 +17,12 @@ export function serieLabel(name: string, years?: { from: number; to: number }): 
   return years.from === years.to ? `${name} (${years.from})` : `${name} (${years.from}–${years.to})`;
 }
 
-/** Extensions sorties le jour `from` (ISO) ou après. */
-export const setIdsReleasedSince = (from: string, releases: readonly SetRelease[]): string[] =>
-  releases.filter((r) => r.releaseDate.slice(0, 10) >= from).map((r) => r.id);
+/** Extensions sorties entre les années indiquées, bornes incluses. */
+export const setIdsReleasedBetween = (from: string, to: string, releases: readonly SetRelease[]): string[] =>
+  releases.filter((r) => {
+    const year = releaseYear(r.releaseDate);
+    return year !== undefined && (!from || year >= from) && (!to || year <= to);
+  }).map((r) => r.id);
 
 /**
  * Combine l'extension choisie et les listes d'extensions permises (bloc, date…), chacune optionnelle.

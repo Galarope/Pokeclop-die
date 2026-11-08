@@ -4,6 +4,7 @@ import { getCardsForPokemon } from '../sources';
 import { getSource } from '../sources';
 import { LANGUAGE_LABELS } from '../sources/types';
 import { formatDate, mapLimit } from '../lib/utils';
+import { releaseYear } from '../lib/cardFilters';
 import { useAsync } from '../hooks/useAsync';
 import { CardModal, CardTile } from './Cards';
 import { Empty, ErrorBox, Loading } from './Status';
@@ -49,16 +50,16 @@ function SetGroup({
         </span>
       }
     >
-      {() => <SetCards cards={cards} onOpenCard={onOpenCard} />}
+      {() => <SetCards cards={cards} onOpenCard={onOpenCard} year={releaseYear(set?.releaseDate)} />}
     </Lazy>
   );
 }
 
-function SetCards({ cards, onOpenCard }: { cards: CardBrief[]; onOpenCard: (c: CardBrief) => void }) {
+function SetCards({ cards, onOpenCard, year }: { cards: CardBrief[]; onOpenCard: (c: CardBrief) => void; year?: string }) {
   return (
     <ul className="grid cards-grid">
       {cards.map((c) => (
-        <CardTile key={c.uid} card={c} onOpen={onOpenCard} />
+        <CardTile key={c.uid} card={c} onOpen={onOpenCard} year={year} />
       ))}
     </ul>
   );

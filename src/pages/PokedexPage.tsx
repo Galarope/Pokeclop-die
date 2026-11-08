@@ -8,6 +8,7 @@ import { generationLabel } from '../lib/utils';
 import { usePokemonList } from '../hooks/usePokemonList';
 import { useUrlState } from '../hooks/useUrlState';
 import { normalize } from '../lib/utils';
+import { Link } from 'react-router-dom';
 
 /** Les trois mascottes du site (celles des curseurs) : Axoloto, Mustébouée au centre, Pikachu. */
 const MASCOTS = [
@@ -71,6 +72,10 @@ export function PokedexPage() {
         </div>
         <Mascots data={data} />
       </header>
+      <div className="team-actions">
+        <Link className="btn" to="/comparer">Comparer des Pokémon</Link>
+        <button type="button" className="btn" disabled={!filtered.length} onClick={() => set({ p: filtered[Math.floor(Math.random() * filtered.length)].id }, false)}>🎲 Pokémon surprise</button>
+      </div>
       <form className="filters filters-bar" onSubmit={(e) => e.preventDefault()} aria-label="Filtres du Pokédex">
         <TextField label="Nom ou numéro" value={values.q} onChange={(v) => set({ q: v })} placeholder="Pikachu, 25…" />
         <SelectField label="Génération" value={values.gen} onChange={(v) => set({ gen: v })} options={gens} />
