@@ -19,13 +19,13 @@ interface RequestOptions {
 }
 
 /** fetch JSON avec retry (réseau, 429, 5xx) et erreurs typées. */
-export async function fetchJson<T>(url: string, opts: RequestOptions = {}): Promise<T> {
+async function fetchWithRetry<T>(url: string, opts: RequestOptions, parse: (res: Response) => Promise<T>): Promise<T> {
   const retries = opts.retries ?? 2;
   let last: ApiError | undefined;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, { ...opts.init, signal: opts.signal });
-      if (res.ok) return (await res.json()) as T;
+      if (res.ok) return await parse(res);
       last = new ApiError(`HTTP ${res.status}`, res.status, url);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') throw e;
@@ -35,4 +35,12 @@ export async function fetchJson<T>(url: string, opts: RequestOptions = {}): Prom
     if (attempt < retries) await sleep(400 * 2 ** attempt);
   }
   throw last;
+}
+
+export function fetchJson<T>(url: string, opts: RequestOptions = {}): Promise<T> {
+  return fetchWithRetry(url, opts, (res) => res.json() as Promise<T>);
+}
+
+export function fetchText(url: string, opts: RequestOptions = {}): Promise<string> {
+  return fetchWithRetry(url, opts, (res) => res.text());
 }

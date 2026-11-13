@@ -8,7 +8,7 @@ import { buildCardsUrl, cleanIllustrators, imageUrl, setIdOf, tcgdex } from './s
 import { raritiesAtLeast, raritiesBetween, rarityLevel, UNRANKED_RARITIES } from './sources/tcgdexRarities';
 import { releaseYear, NO_MATCH, parseTypeList, resolveSetFilter, serieLabel, serieYears, setIdsReleasedBetween } from './lib/cardFilters';
 import type { SetRelease } from './domain/types';
-import { mapSpecies, toEvolutionTree, describeEvolution } from './api/pokeapi';
+import { getPokemonList, toEvolutionTree, describeEvolution } from './api/pokeapi';
 
 describe('tcgdex helpers', () => {
   it('extrait l\'id d\'extension même avec des tirets', () => {
@@ -176,25 +176,48 @@ describe('rareté minimum', () => {
 });
 
 describe('pokeapi mapping', () => {
-  it('mappe une espèce GraphQL et laisse undefined ce qui manque', () => {
-    const p = mapSpecies({
-      id: 25,
-      name: 'pikachu',
-      generation_id: 1,
-      pokemon_v2_pokemonspeciesnames: [{ name: 'Pikachu', language_id: 9 }],
-      pokemon_v2_pokemons: [
-        {
-          height: 4,
-          weight: 60,
-          pokemon_v2_pokemontypes: [{ pokemon_v2_type: { name: 'electric', pokemon_v2_typenames: [] } }],
-          pokemon_v2_pokemonstats: [{ base_stat: 35, pokemon_v2_stat: { name: 'hp' } }],
-        },
-      ],
-    });
-    expect(p.nameEn).toBe('Pikachu');
-    expect(p.nameFr).toBeUndefined();
-    expect(p.types[0]).toEqual({ slug: 'electric', labelFr: undefined });
-    expect(p.stats).toEqual({ hp: 35 });
+  beforeEach(() => clearCache());
+  afterEach(() => {
+    clearCache();
+    vi.unstubAllGlobals();
+  });
+
+  it('construit la liste depuis les fichiers CSV PokéAPI', async () => {
+    const files: Record<string, string> = {
+      'pokemon_species.csv': 'id,identifier,generation_id,evolves_from_species_id,is_legendary,is_mythical\n25,pikachu,1,172,0,0\n',
+      'pokemon_species_names.csv': 'pokemon_species_id,local_language_id,name,genus\n25,5,Pikachu,Souris\n25,9,Pikachu,Mouse\n',
+      'pokemon.csv': 'id,identifier,species_id,height,weight,is_default\n25,pikachu,25,4,60,1\n',
+      'pokemon_types.csv': 'pokemon_id,type_id,slot\n25,13,1\n',
+      'pokemon_stats.csv': 'pokemon_id,stat_id,base_stat\n25,1,35\n',
+      'types.csv': 'id,identifier\n13,electric\n',
+      'type_names.csv': 'type_id,local_language_id,name\n13,5,Électrik\n',
+      'stats.csv': 'id,identifier\n1,hp\n',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const file = url.split('/').pop()!;
+        return new Response(files[file], { status: 200 });
+      }),
+    );
+
+    await expect(getPokemonList()).resolves.toEqual([
+      {
+        id: 25,
+        slug: 'pikachu',
+        nameFr: 'Pikachu',
+        nameEn: 'Pikachu',
+        generation: 1,
+        evolvesFromId: 172,
+        isLegendary: false,
+        isMythical: false,
+        types: [{ slug: 'electric', labelFr: 'Électrik' }],
+        height: 4,
+        weight: 60,
+        stats: { hp: 35 },
+        imageUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png',
+      },
+    ]);
   });
 
   it('construit l\'arbre d\'évolution', () => {

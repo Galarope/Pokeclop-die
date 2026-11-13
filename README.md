@@ -38,7 +38,7 @@ npm run coverage:api # mesure la couverture réelle des API (réseau requis)
 src/
   lib/        http.ts (fetch + retry + ApiError), cache.ts (mémoire + localStorage, TTL, dédup), utils.ts
   domain/     types.ts — modèle de données indépendant des API
-  api/        pokeapi.ts — client PokéAPI (GraphQL pour la liste, REST pour le détail)
+  api/        pokeapi.ts — client PokéAPI (CSV officiels pour la liste, REST pour le détail)
   sources/    types.ts (interface CardSource), tcgdex.ts, index.ts (registre + agrégation)
   hooks/      useAsync, useUrlState, usePokemonList (contexte)
   components/ Layout, SearchBox, Cards, PokemonModal, PokemonCards, Status…
@@ -76,7 +76,7 @@ Les pages Extensions/Cartes utilisent pour l'instant TCGdex directement ; les re
 - Le filtre type des cartes utilise les types **du JCC** (Eau, Feu…), distincts des types Pokémon. Exclure un type retire aussi les cartes sans type (Dresseurs…) : TCGdex les écarte de toute exclusion.
 - **Rareté minimum** : TCGdex ne classe pas ses raretés. L'échelle à 6 niveaux (commune → secrète, TCG Pocket rangé dessus) est dans `src/sources/tcgdexRarities.ts` ; « Promo » et « Sans rareté » n'y figurent pas. Une rareté que TCGdex ajouterait n'est pas proposée par ce filtre tant qu'elle n'y est pas rangée.
 - **Plage de n° de Pokédex** : TCGdex ne sait pas filtrer une plage, donc une requête par numéro (6 à la fois, jusqu'au n° 1200, `MAX_DEX_NUMBER`). Mesuré : ~3,5 s pour 361 numéros. Ces résultats restent en mémoire, pas dans `localStorage`, qu'une large plage saturerait.
-- La liste du Pokédex dépend de **PokéAPI GraphQL (`beta.pokeapi.co`)**, service en bêta : s'il est indisponible, la liste s'affiche en erreur (pas de repli REST, qui exigerait 1025 requêtes pour les noms FR).
+- La liste du Pokédex est construite depuis les fichiers CSV officiels de PokéAPI, servis par GitHub et mis en cache 7 jours. Cela évite de dépendre de l'endpoint GraphQL bêta, qui renvoie actuellement des erreurs d'autorisation/CORS.
 - Les noms de formes et conditions d'évolution (objets, lieux) sont affichés tels que fournis (slugs anglais).
 - Pas d'images pour certaines cartes (TCGdex) : « Image non disponible ».
 - **Images de cartes manquantes** : TCGdex n'a pas d'image pour certaines cartes (Pikachu fr : 69/222). Si la même carte existe en anglais avec une image, elle est affichée et signalée « Image de la version anglaise » (29 récupérées sur 69) ; sinon « Image non disponible ». pokemontcg.io a été testé comme source de repli : seuls 14 des 48 ids manquants en anglais correspondent, le reste exigerait un appariement approximatif, donc non fiable.

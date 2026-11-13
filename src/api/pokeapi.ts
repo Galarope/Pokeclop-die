@@ -1,5 +1,5 @@
 ﻿import { cached, TTL } from '../lib/cache';
-import { fetchJson } from '../lib/http';
+import { fetchJson, fetchText } from '../lib/http';
 import type {
   EvolutionNode,
   PokemonAbility,
@@ -12,93 +12,150 @@ import type {
 import { STAT_KEYS } from '../domain/types';
 
 const REST = 'https://pokeapi.co/api/v2';
-const GRAPHQL = 'https://beta.pokeapi.co/graphql/v1beta';
+const CSV = 'https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv';
 const FR = 5;
 const EN = 9;
+const LIST_FILES = [
+  'pokemon_species.csv',
+  'pokemon_species_names.csv',
+  'pokemon.csv',
+  'pokemon_types.csv',
+  'pokemon_stats.csv',
+  'types.csv',
+  'type_names.csv',
+  'stats.csv',
+] as const;
 
 export const artworkUrl = (id: number) =>
   `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
 
-// ---------- Liste (GraphQL : 1 requête pour toutes les espèces) ----------
+type CsvRow = Record<string, string>;
 
-interface GqlSpecies {
-  id: number;
-  name: string;
-  generation_id: number;
-  evolves_from_species_id?: number | null;
-  is_legendary?: boolean | null;
-  is_mythical?: boolean | null;
-  pokemon_v2_pokemonspeciesnames: { name: string; language_id: number }[];
-  pokemon_v2_pokemons: {
-    height: number | null;
-    weight: number | null;
-    pokemon_v2_pokemontypes: {
-      pokemon_v2_type: { name: string; pokemon_v2_typenames: { name: string }[] };
-    }[];
-    pokemon_v2_pokemonstats: { base_stat: number; pokemon_v2_stat: { name: string } }[];
-  }[];
-}
+function parseCsv(input: string): CsvRow[] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
 
-const LIST_QUERY = `query {
-  pokemon_v2_pokemonspecies(order_by: {id: asc}) {
-    id name generation_id evolves_from_species_id is_legendary is_mythical
-    pokemon_v2_pokemonspeciesnames(where: {language_id: {_in: [${FR}, ${EN}]}}) { name language_id }
-    pokemon_v2_pokemons(where: {is_default: {_eq: true}}) {
-      height weight
-      pokemon_v2_pokemontypes(order_by: {slot: asc}) {
-        pokemon_v2_type { name pokemon_v2_typenames(where: {language_id: {_eq: ${FR}}}) { name } }
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (quoted) {
+      if (char === '"' && input[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        field += char;
       }
-      pokemon_v2_pokemonstats { base_stat pokemon_v2_stat { name } }
+    } else if (char === '"' && field === '') {
+      quoted = true;
+    } else if (char === ',') {
+      row.push(field);
+      field = '';
+    } else if (char === '\n') {
+      row.push(field.replace(/\r$/, ''));
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += char;
     }
   }
-}`;
+  if (field || row.length) {
+    row.push(field.replace(/\r$/, ''));
+    rows.push(row);
+  }
 
-function toStats(rows: { base_stat: number; pokemon_v2_stat: { name: string } }[]): Partial<Record<StatKey, number>> {
+  const [headers, ...records] = rows;
+  if (!headers) throw new Error('Fichier CSV PokéAPI vide');
+  return records.map((values) => Object.fromEntries(headers.map((header, i) => [header, values[i] ?? ''])));
+}
+
+function toStats(rows: { base_stat: number; stat: string }[]): Partial<Record<StatKey, number>> {
   const out: Partial<Record<StatKey, number>> = {};
   for (const r of rows) {
-    const k = r.pokemon_v2_stat.name as StatKey;
+    const k = r.stat as StatKey;
     if ((STAT_KEYS as readonly string[]).includes(k)) out[k] = r.base_stat;
   }
   return out;
 }
 
-export function mapSpecies(s: GqlSpecies): PokemonSummary {
-  const p = s.pokemon_v2_pokemons[0];
-  const name = (lang: number) => s.pokemon_v2_pokemonspeciesnames.find((n) => n.language_id === lang)?.name || undefined;
-  return {
-    id: s.id,
-    slug: s.name,
-    nameFr: name(FR),
-    nameEn: name(EN),
-    generation: s.generation_id,
-    evolvesFromId: s.evolves_from_species_id ?? undefined,
-    isLegendary: s.is_legendary ?? undefined,
-    isMythical: s.is_mythical ?? undefined,
-    types: (p?.pokemon_v2_pokemontypes ?? []).map((t) => ({
-      slug: t.pokemon_v2_type.name,
-      labelFr: t.pokemon_v2_type.pokemon_v2_typenames[0]?.name,
-    })),
-    height: p?.height ?? undefined,
-    weight: p?.weight ?? undefined,
-    stats: toStats(p?.pokemon_v2_pokemonstats ?? []),
-    imageUrl: artworkUrl(s.id),
-  };
+async function loadPokemonList(): Promise<PokemonSummary[]> {
+  const files = await Promise.all(LIST_FILES.map(async (file) => parseCsv(await fetchText(`${CSV}/${file}`))));
+  const [species, names, pokemon, pokemonTypes, pokemonStats, types, typeNames, stats] = files;
+
+  const namesBySpecies = new Map<number, Map<number, string>>();
+  for (const row of names) {
+    const speciesId = Number(row.pokemon_species_id);
+    const languageId = Number(row.local_language_id);
+    if (languageId !== FR && languageId !== EN) continue;
+    let localizedNames = namesBySpecies.get(speciesId);
+    if (!localizedNames) namesBySpecies.set(speciesId, (localizedNames = new Map()));
+    localizedNames.set(languageId, row.name);
+  }
+
+  const defaultPokemon = new Map<number, CsvRow>();
+  for (const row of pokemon) {
+    if (row.is_default === '1') defaultPokemon.set(Number(row.species_id), row);
+  }
+
+  const typeNamesFr = new Map<number, string>();
+  for (const row of typeNames) {
+    if (Number(row.local_language_id) === FR) typeNamesFr.set(Number(row.type_id), row.name);
+  }
+  const typesById = new Map(types.map((row) => [Number(row.id), row.identifier]));
+  const typeRowsByPokemon = new Map<number, { slot: number; typeId: number }[]>();
+  for (const row of pokemonTypes) {
+    const pokemonId = Number(row.pokemon_id);
+    let entries = typeRowsByPokemon.get(pokemonId);
+    if (!entries) typeRowsByPokemon.set(pokemonId, (entries = []));
+    entries.push({ slot: Number(row.slot), typeId: Number(row.type_id) });
+  }
+
+  const statNames = new Map(stats.map((row) => [Number(row.id), row.identifier]));
+  const statRowsByPokemon = new Map<number, { base_stat: number; stat: string }[]>();
+  for (const row of pokemonStats) {
+    const stat = statNames.get(Number(row.stat_id));
+    if (!stat) continue;
+    const pokemonId = Number(row.pokemon_id);
+    let entries = statRowsByPokemon.get(pokemonId);
+    if (!entries) statRowsByPokemon.set(pokemonId, (entries = []));
+    entries.push({ base_stat: Number(row.base_stat), stat });
+  }
+
+  return species.map((row): PokemonSummary => {
+    const id = Number(row.id);
+    const p = defaultPokemon.get(id);
+    const localizedNames = namesBySpecies.get(id);
+    const pokemonId = Number(p?.id);
+    return {
+      id,
+      slug: row.identifier,
+      nameFr: localizedNames?.get(FR),
+      nameEn: localizedNames?.get(EN),
+      generation: Number(row.generation_id),
+      evolvesFromId: row.evolves_from_species_id ? Number(row.evolves_from_species_id) : undefined,
+      isLegendary: row.is_legendary === '1',
+      isMythical: row.is_mythical === '1',
+      types: (typeRowsByPokemon.get(pokemonId) ?? [])
+        .sort((a, b) => a.slot - b.slot)
+        .flatMap(({ typeId }) => {
+          const slug = typesById.get(typeId);
+          return slug ? [{ slug, labelFr: typeNamesFr.get(typeId) }] : [];
+        }),
+      height: p ? Number(p.height) : undefined,
+      weight: p ? Number(p.weight) : undefined,
+      stats: toStats(statRowsByPokemon.get(pokemonId) ?? []),
+      imageUrl: artworkUrl(id),
+    };
+  });
 }
 
 export function getPokemonList(): Promise<PokemonSummary[]> {
   return cached(
-    'pokeapi:list:v3',
-    async () => {
-      const json = await fetchJson<{ data?: { pokemon_v2_pokemonspecies: GqlSpecies[] }; errors?: unknown }>(GRAPHQL, {
-        init: {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: LIST_QUERY }),
-        },
-      });
-      if (!json.data) throw new Error('Réponse PokéAPI GraphQL invalide');
-      return json.data.pokemon_v2_pokemonspecies.map(mapSpecies);
-    },
+    'pokeapi:list:v4',
+    loadPokemonList,
     { ttl: TTL.week },
   );
 }
@@ -207,7 +264,7 @@ export async function getPokemonDetail(summary: PokemonSummary, allTypes: Pokemo
               abilities,
               height: p.height,
               weight: p.weight,
-              stats: toStats(p.stats.map((s) => ({ base_stat: s.base_stat, pokemon_v2_stat: { name: s.stat.name } }))),
+              stats: toStats(p.stats.map((s) => ({ base_stat: s.base_stat, stat: s.stat.name }))),
               imageUrl: p.sprites.other?.['official-artwork']?.front_default ?? undefined,
                             shinyImageUrl: p.sprites.other?.['official-artwork']?.front_shiny ?? undefined,
                           };

@@ -1,5 +1,6 @@
 // Mesure la couverture RÉELLE des API (aucune donnée simulée) : npm run coverage:api
 const TCG = 'https://api.tcgdex.net/v2';
+const POKE_CSV = 'https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv';
 const LANGS = ['fr', 'en', 'ja'];
 const SAMPLE = [1, 25, 133, 150, 448, 727, 1000]; // échantillon de n° Pokédex
 
@@ -9,17 +10,57 @@ const get = async (url, init) => {
   return r.json();
 };
 
+const getText = async (url) => {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  return r.text();
+};
+
+const parseCsv = (input) => {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (quoted) {
+      if (char === '"' && input[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"' && field === '') quoted = true;
+    else if (char === ',') {
+      row.push(field);
+      field = '';
+    } else if (char === '\n') {
+      row.push(field.replace(/\r$/, ''));
+      rows.push(row);
+      row = [];
+      field = '';
+    } else field += char;
+  }
+  if (field || row.length) {
+    row.push(field.replace(/\r$/, ''));
+    rows.push(row);
+  }
+  const [headers, ...records] = rows;
+  if (!headers) throw new Error('Fichier CSV PokéAPI vide');
+  return records.map((values) => Object.fromEntries(headers.map((header, i) => [header, values[i] ?? ''])));
+};
+
 console.log('== PokéAPI ==');
-const gql = await get('https://beta.pokeapi.co/graphql/v1beta', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    query: `{ pokemon_v2_pokemonspecies(order_by:{id:asc}){ id pokemon_v2_pokemonspeciesnames(where:{language_id:{_in:[5,9]}}){language_id} } }`,
-  }),
-});
-const species = gql.data.pokemon_v2_pokemonspecies;
-const has = (s, l) => s.pokemon_v2_pokemonspeciesnames.some((n) => n.language_id === l);
-console.log(`espèces: ${species.length}, avec nom FR: ${species.filter((s) => has(s, 5)).length}, avec nom EN: ${species.filter((s) => has(s, 9)).length}`);
+const [species, names] = await Promise.all([
+  getText(`${POKE_CSV}/pokemon_species.csv`).then(parseCsv),
+  getText(`${POKE_CSV}/pokemon_species_names.csv`).then(parseCsv),
+]);
+const speciesIds = new Set(species.map((s) => Number(s.id)));
+const namedIn = (languageId) => new Set(
+  names.filter((name) => Number(name.local_language_id) === languageId).map((name) => Number(name.pokemon_species_id)),
+);
+const frNames = namedIn(5);
+const enNames = namedIn(9);
+console.log(`espèces: ${speciesIds.size}, avec nom FR: ${[...speciesIds].filter((id) => frNames.has(id)).length}, avec nom EN: ${[...speciesIds].filter((id) => enNames.has(id)).length}`);
 
 console.log('\n== TCGdex : extensions par langue ==');
 const sets = {};
